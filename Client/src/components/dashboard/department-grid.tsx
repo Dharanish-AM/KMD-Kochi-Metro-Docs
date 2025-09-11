@@ -120,82 +120,139 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
     const departmentSlug = department.name.toLowerCase().replace(/\s+/g, '-')
     navigate(`/department/${departmentSlug}`)
   }
+
+  const handleSeeAllUsers = (department: Department) => {
+    // Navigate to users page for this department
+    const departmentSlug = department.name.toLowerCase().replace(/\s+/g, '-')
+    navigate(`/users/${departmentSlug}`)
+  }
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-success text-success-foreground"
+        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800"
       case "maintenance":
-        return "bg-warning text-warning-foreground"
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800"
       case "inactive":
-        return "bg-destructive text-destructive-foreground"
+        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800"
       default:
-        return "bg-muted text-muted-foreground"
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400 border border-gray-200 dark:border-gray-800"
     }
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {departments.map((department) => {
-        const Icon = departmentIcons[department.name as keyof typeof departmentIcons] || Building2
-        
-        return (
-          <Card key={department.id} className="gradient-card hover:shadow-elevated transition-smooth cursor-pointer"
-                onClick={() => onDepartmentClick(department)}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary-light flex items-center justify-center">
-                    <Icon className="h-5 w-5 text-primary" />
+    <div className="w-full px-4 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+        {departments.map((department) => {
+          const Icon = departmentIcons[department.name as keyof typeof departmentIcons] || Building2
+          
+          return (
+            <Card 
+              key={department.id} 
+              className="group relative overflow-hidden border-0 bg-white dark:bg-gray-800 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-[1.02] hover:border-blue-200 dark:hover:border-blue-700"
+              onClick={() => onDepartmentClick(department)}
+            >
+              {/* Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-900/20 dark:to-purple-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              
+              <CardHeader className="pb-4 relative z-10">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3 flex-1 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg flex-shrink-0">
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                        {department.name}
+                      </CardTitle>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Updated {department.lastUpdated}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-lg">{department.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">Updated {department.lastUpdated}</p>
-                  </div>
+                  <Badge 
+                    className={`${getStatusColor(department.status)} text-xs font-medium px-2 py-1 rounded-full flex-shrink-0`} 
+                    variant="secondary"
+                  >
+                    {department.status}
+                  </Badge>
                 </div>
-                <Badge className={getStatusColor(department.status)} variant="secondary">
-                  {department.status}
-                </Badge>
-              </div>
-            </CardHeader>
+              </CardHeader>
             
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-foreground">{department.totalDocs}</p>
-                  <p className="text-xs text-muted-foreground">Total Docs</p>
+            <CardContent className="relative z-10 pt-0">
+              {/* Statistics Grid */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <p className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
+                    {department.totalDocs}
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 font-medium">
+                    Total Docs
+                  </p>
                 </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-warning">{department.pendingDocs}</p>
-                  <p className="text-xs text-muted-foreground">Pending</p>
+                <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <p className="text-2xl sm:text-3xl font-bold text-orange-500 dark:text-orange-400">
+                    {department.pendingDocs}
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 font-medium">
+                    Pending
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-3">
+              {/* Progress Section */}
+              <div className="space-y-4 mb-6">
                 <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-muted-foreground">Completion Rate</span>
-                    <span className="font-medium">{department.completionRate}%</span>
+                  <div className="flex justify-between items-center text-sm mb-2">
+                    <span className="text-gray-600 dark:text-gray-300 font-medium">Completion Rate</span>
+                    <span className="font-bold text-gray-900 dark:text-white">
+                      {department.completionRate}%
+                    </span>
                   </div>
-                  <Progress value={department.completionRate} className="h-2" />
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-500"
+                      style={{ width: `${department.completionRate}%` }}
+                    />
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground flex items-center">
-                    <Users className="h-3 w-3 mr-1" />
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <span className="text-gray-600 dark:text-gray-300 flex items-center text-sm font-medium">
+                    <Users className="h-4 w-4 mr-2 text-blue-500" />
                     Active Users
                   </span>
-                  <span className="font-medium">{department.activeUsers}</span>
+                  <span className="font-bold text-gray-900 dark:text-white">
+                    {department.activeUsers}
+                  </span>
                 </div>
               </div>
 
-              <div className="flex space-x-2">
-                <Button className="flex-1 gradient-primary" size="sm" onClick={() => onDepartmentClick(department)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Admin Panel
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => handleDepartmentAccess(department)}>
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button 
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200 text-sm font-medium" 
+                  size="sm" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Redirect to external dashboard URL
+                    const dashboardUrl = `https://dashboard.${department.name.toLowerCase()}.com/admin`;
+                    window.open(dashboardUrl, '_blank');
+                  }}
+                >
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Dept Access
+                  Dashboard
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-200 text-sm font-medium"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSeeAllUsers(department);
+                  }}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  See All Users
                 </Button>
               </div>
             </CardContent>
@@ -203,5 +260,6 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
         )
       })}
     </div>
+  </div>
   )
 }

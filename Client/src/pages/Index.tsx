@@ -63,7 +63,8 @@ const initialDepartments: Department[] = [
     activeUsers: 12,
     completionRate: 91,
     lastUpdated: "30 mins ago",
-    status: "active"
+    status: "active",
+   
   },
   {
     id: "5",
