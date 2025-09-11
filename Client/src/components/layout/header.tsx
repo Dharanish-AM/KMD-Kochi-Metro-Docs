@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Bell, Search, Plus } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Search } from "lucide-react"
 import { CreateDepartmentDialog } from "@/components/admin/create-department-dialog"
+import { NotificationsDropdown } from "./notifications-dropdown"
+import { ProfileDropdown } from "./profile-dropdown"
 
 interface HeaderProps {
   title: string
@@ -37,19 +37,8 @@ export function Header({ title, description, onAddClick, showAddButton = false, 
             <CreateDepartmentDialog onDepartmentCreate={onCreateDepartment} />
           )}
 
-          <div className="relative">
-            <Button variant="ghost" size="icon">
-              <Bell className="h-5 w-5" />
-            </Button>
-            <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
-              3
-            </Badge>
-          </div>
-
-          <Avatar>
-            <AvatarImage src="/placeholder-user.jpg" />
-            <AvatarFallback className="gradient-primary text-primary-foreground">AD</AvatarFallback>
-          </Avatar>
+          <NotificationsDropdown />
+          <ProfileDropdown />
         </div>
       </div>
     </header>

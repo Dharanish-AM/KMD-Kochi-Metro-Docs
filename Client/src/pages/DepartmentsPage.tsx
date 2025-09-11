@@ -1,9 +1,7 @@
 import { useState } from "react"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
-import { OverviewStats } from "@/components/dashboard/overview-stats"
 import { DepartmentGrid } from "@/components/dashboard/department-grid"
-import { RecentActivity } from "@/components/dashboard/recent-activity"
 
 interface Department {
   id: string
@@ -109,7 +107,7 @@ const initialDepartments: Department[] = [
   }
 ]
 
-const Index = () => {
+export function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>(initialDepartments)
 
   const handleCreateDepartment = (newDepartment: Omit<Department, "id" | "totalDocs" | "pendingDocs" | "activeUsers" | "completionRate" | "lastUpdated" | "status">) => {
@@ -135,30 +133,20 @@ const Index = () => {
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden transition-all duration-300" style={{ marginLeft: '256px' }}>
         <Header 
-          title="Kochi Metro Documentation" 
-          description="Centralized document management system"
+          title="Departments" 
+          description="Manage all KMRL departments and their document workflows"
           showAddButton={true}
           onCreateDepartment={handleCreateDepartment}
         />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background">
-          <div className="p-6 space-y-6">
-            <OverviewStats />
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <DepartmentGrid 
-                  departments={departments} 
-                  onDepartmentClick={handleDepartmentClick}
-                />
-              </div>
-              <div>
-                <RecentActivity />
-              </div>
-            </div>
+          <div className="p-6">
+            <DepartmentGrid 
+              departments={departments} 
+              onDepartmentClick={handleDepartmentClick}
+            />
           </div>
         </main>
       </div>
     </div>
   )
 }
-
-export default Index

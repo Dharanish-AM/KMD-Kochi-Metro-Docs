@@ -9,31 +9,38 @@ import {
   Settings,
   Menu,
   X,
-  Lightbulb
+  Lightbulb,
+  Bell,
+  UserCircle
 } from "lucide-react"
 import { useState } from "react"
-
-interface SidebarProps {
-  activeView: string
-  onViewChange: (view: string) => void
-}
+import { useNavigate, useLocation } from "react-router-dom"
 
 const menuItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "important-points", label: "Important Points", icon: Lightbulb },
-  { id: "departments", label: "Departments", icon: Building2 },
-  { id: "documents", label: "Documents", icon: FileText },
-  { id: "users", label: "Users", icon: Users },
-  { id: "settings", label: "Settings", icon: Settings }
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
+  { id: "departments", label: "Departments", icon: Building2, path: "/departments" },
+  { id: "documents", label: "Documents", icon: FileText, path: "/documents" },
+  { id: "users", label: "Users", icon: Users, path: "/users" },
+  { id: "notifications", label: "Notifications", icon: Bell, path: "/notifications" },
+  { id: "profile", label: "Profile", icon: UserCircle, path: "/profile" },
+  { id: "settings", label: "Settings", icon: Settings, path: "/settings" }
 ]
 
-export function Sidebar({ activeView, onViewChange }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+export function Sidebar() {
+  const [isCollapsed, setIsCollapsed] = useState(false) // Start expanded by default
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const isActive = (path: string) => {
+    if (path === "/" && location.pathname === "/") return true
+    if (path !== "/" && location.pathname.startsWith(path)) return true
+    return false
+  }
 
   return (
     <>
       <div className={cn(
-        "fixed left-0 top-0 z-40 h-full bg-card border-r border-border transition-smooth gradient-card shadow-card",
+        "fixed left-0 top-0 z-40 h-full bg-card border-r border-border transition-all duration-300 gradient-card shadow-card",
         isCollapsed ? "w-16" : "w-64"
       )}>
         <div className="flex items-center justify-between p-4 border-b border-border">
@@ -52,7 +59,8 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
             variant="ghost"
             size="icon"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8"
+            className="h-8 w-8 hover:bg-muted"
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {isCollapsed ? <Menu className="h-4 w-4" /> : <X className="h-4 w-4" />}
           </Button>
@@ -62,18 +70,18 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
           <ul className="space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon
-              const isActive = activeView === item.id
+              const itemIsActive = isActive(item.path)
               
               return (
                 <li key={item.id}>
                   <Button
-                    variant={isActive ? "default" : "ghost"}
+                    variant={itemIsActive ? "default" : "ghost"}
                     className={cn(
                       "w-full justify-start transition-smooth",
                       isCollapsed ? "px-3" : "px-4",
-                      isActive && "gradient-primary shadow-glow"
+                      itemIsActive && "gradient-primary shadow-glow"
                     )}
-                    onClick={() => onViewChange(item.id)}
+                    onClick={() => navigate(item.path)}
                   >
                     <Icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
                     {!isCollapsed && <span>{item.label}</span>}
