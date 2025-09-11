@@ -20,6 +20,7 @@ const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { id: "departments", label: "Departments", icon: Building2, path: "/departments" },
   { id: "documents", label: "Documents", icon: FileText, path: "/documents" },
+  { id: "important-points", label: "Important Points", icon: Lightbulb, path: "/important-points" },
   { id: "users", label: "Users", icon: Users, path: "/users" },
   { id: "notifications", label: "Notifications", icon: Bell, path: "/notifications" },
   { id: "profile", label: "Profile", icon: UserCircle, path: "/profile" },

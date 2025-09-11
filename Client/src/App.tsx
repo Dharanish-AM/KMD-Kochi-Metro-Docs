@@ -12,6 +12,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { DepartmentsPage } from "./pages/DepartmentsPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { AllUsersPage } from "./pages/AllUsersPage";
+import ImportantPointsPage from "./pages/ImportantPointsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/departments" element={<DepartmentsPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/users" element={<AllUsersPage />} />
+          <Route path="/important-points" element={<ImportantPointsPage />} />
           <Route path="/department/:departmentName" element={<DepartmentPanel />} />
           <Route path="/users/:departmentId" element={<UsersPage />} />
           <Route path="/profile" element={<ProfilePage />} />

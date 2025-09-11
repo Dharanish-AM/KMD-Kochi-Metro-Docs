@@ -4,7 +4,6 @@ import { Header } from "@/components/layout/header"
 import { OverviewStats } from "@/components/dashboard/overview-stats"
 import { DepartmentGrid } from "@/components/dashboard/department-grid"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
-import { ImportantPoints } from "@/components/dashboard/important-points"
 
 interface Department {
   id: string
@@ -134,7 +133,7 @@ const Index = () => {
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden transition-all duration-300" style={{ marginLeft: '256px' }}>
+      <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           title="Kochi Metro Documentation" 
           description="Centralized document management system"
@@ -151,8 +150,7 @@ const Index = () => {
                   onDepartmentClick={handleDepartmentClick}
                 />
               </div>
-              <div className="space-y-6">
-                <ImportantPoints />
+              <div>
                 <RecentActivity />
               </div>
             </div>

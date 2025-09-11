@@ -4,7 +4,8 @@ import { Header } from "@/components/layout/header"
 import { OverviewStats } from "@/components/dashboard/overview-stats"
 import { DepartmentGrid } from "@/components/dashboard/department-grid"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
-import { ImportantPoints } from "@/components/dashboard/important-points"
+import { DepartmentUpload } from "@/components/departments/department-upload"
+import { ImportantPoints } from "@/components/admin/important-points"
 
 interface Department {
   id: string
@@ -110,8 +111,9 @@ const initialDepartments: Department[] = [
   }
 ]
 
-const Index = () => {
+export function Dashboard() {
   const [departments, setDepartments] = useState<Department[]>(initialDepartments)
+  const [activeView, setActiveView] = useState("dashboard")
 
   const handleCreateDepartment = (newDepartment: Omit<Department, "id" | "totalDocs" | "pendingDocs" | "activeUsers" | "completionRate" | "lastUpdated" | "status">) => {
     const department: Department = {
@@ -127,40 +129,98 @@ const Index = () => {
     setDepartments(prev => [...prev, department])
   }
 
-  const handleDepartmentClick = (department: Department) => {
-    console.log("Department clicked:", department)
-  }
-
-  return (
-    <div className="flex h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden transition-all duration-300" style={{ marginLeft: '256px' }}>
-        <Header 
-          title="Kochi Metro Documentation" 
-          description="Centralized document management system"
-          showAddButton={true}
-          onCreateDepartment={handleCreateDepartment}
-        />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background">
+  const renderContent = () => {
+    switch (activeView) {
+      case "dashboard":
+        return (
           <div className="p-6 space-y-6">
-            <OverviewStats />
+            <OverviewStats departments={departments} />
             <div className="grid gap-6 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <DepartmentGrid 
                   departments={departments} 
-                  onDepartmentClick={handleDepartmentClick}
+                  onCreateDepartment={handleCreateDepartment}
                 />
               </div>
-              <div className="space-y-6">
-                <ImportantPoints />
+              <div>
                 <RecentActivity />
               </div>
             </div>
           </div>
+        )
+      case "important-points":
+        return (
+          <div className="p-6">
+            <ImportantPoints />
+          </div>
+        )
+      case "departments":
+        return (
+          <div className="p-6 space-y-6">
+            <DepartmentGrid 
+              departments={departments} 
+              onCreateDepartment={handleCreateDepartment}
+            />
+          </div>
+        )
+      case "documents":
+        return (
+          <div className="p-6">
+            <DepartmentUpload />
+          </div>
+        )
+      case "users":
+        return (
+          <div className="p-6">
+            <div className="text-center py-12">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">User Management</h2>
+              <p className="text-gray-600 dark:text-gray-400">Manage users across all departments</p>
+            </div>
+          </div>
+        )
+      case "settings":
+        return (
+          <div className="p-6">
+            <div className="text-center py-12">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Settings</h2>
+              <p className="text-gray-600 dark:text-gray-400">Application settings and preferences</p>
+            </div>
+          </div>
+        )
+      default:
+        return (
+          <div className="p-6 space-y-6">
+            <OverviewStats departments={departments} />
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <DepartmentGrid 
+                  departments={departments} 
+                  onCreateDepartment={handleCreateDepartment}
+                />
+              </div>
+              <div>
+                <RecentActivity />
+              </div>
+            </div>
+          </div>
+        )
+    }
+  }
+
+  return (
+    <div className="flex h-screen bg-background">
+      <Sidebar activeView={activeView} onViewChange={setActiveView} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header 
+          title="Kochi Metro Documentation" 
+          description="Centralized document management system"
+          showAddButton={activeView === "dashboard" || activeView === "departments"}
+          onCreateDepartment={handleCreateDepartment}
+        />
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background">
+          {renderContent()}
         </main>
       </div>
     </div>
   )
 }
-
-export default Index
