@@ -7,5 +7,5 @@ index = faiss.IndexFlatL2(768)  # embedding size
 
 def embed_text(text_list):
     embeddings = model.encode(text_list, convert_to_numpy=True)
-    index.add(embeddings)
+    index.add(embeddings) # type: ignore
     return embeddings

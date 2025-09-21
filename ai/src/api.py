@@ -20,25 +20,25 @@ async def process_file(file: UploadFile):
 
     # --- Text Extraction ---
     text = ""
-    if file.filename.endswith(".pdf"):
+    if file.filename.endswith(".pdf"):  # type: ignore
         logger.info("Extracting text from PDF")
         text = parser.extract_text_pdf(file_path)
         if not text.strip():  # fallback to OCR for scanned PDF
             logger.info("PDF text extraction empty, falling back to OCR")
-            text = ocr.extract_text_image(file_path)
-    elif file.filename.endswith(".docx"):
+            text = ocr.extract_text_from_file(file_path)  # type: ignore
+    elif file.filename.endswith(".docx"):  # type: ignore
         logger.info("Extracting text from DOCX")
         text = parser.extract_text_docx(file_path)
     else:
         logger.info("Extracting text using OCR from image")
-        text = ocr.extract_text_image(file_path)
+        text = ocr.extract_text_from_file(file_path)  # type: ignore
 
     # --- Check if any text was extracted ---
     if not text.strip():
         logger.info("No text could be extracted from this document.")
         return {
             "file_name": file.filename,
-            "error": "No text could be extracted from this document."
+            "error": "No text could be extracted from this document.",
         }
 
     # --- Language Detection ---
@@ -77,6 +77,6 @@ async def process_file(file: UploadFile):
         "translated_text": translated_text[:500],
         "classification": doc_class,
         "metadata": meta,
-        "embedding_vector_preview": embedding_vector[:50],  # first 50 dims
+        "embedding_vector": embedding_vector,  # full vector
         "summary": summary,
     }

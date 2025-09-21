@@ -1,33 +1,76 @@
-def extract_text_image(image_path: str) -> str:
+import logging
+import easyocr
+import pytesseract
+from pdf2image import convert_from_path
+from typing import List
+from PIL import Image
+import numpy as np
+
+def extract_text_from_file(file_path: str) -> str:
     """
-    Extract text from image using EasyOCR for English and Tesseract for Malayalam.
-    Falls back to English if Malayalam extraction fails.
+    Extract text from any file using OCR.
     """
-    import easyocr
+    reader = easyocr.Reader(['en'])
+    text = ""
     try:
-        import pytesseract
-    except ImportError:
-        pytesseract = None
+        if file_path.lower().endswith('.pdf'):
+            images = pdf_to_images(file_path)
+            for idx, image in enumerate(images):
+                logging.info(f"Performing OCR on page {idx + 1} of {file_path}")
+                img_array = np.array(image)
+                # EasyOCR for English text
+                english_result = reader.readtext(img_array, detail=0)
+                english_text = " ".join(english_result) # type: ignore
 
-    text_ml = ""
-    # Try Malayalam extraction using pytesseract if available
-    if pytesseract:
-        try:
-            from PIL import Image
-            img = Image.open(image_path)
-            # Malayalam language code for Tesseract is 'mal'
-            text_ml = pytesseract.image_to_string(img, lang='mal').strip()
-        except Exception:
-            text_ml = ""
+                # Pytesseract for Malayalam text
+                malayalam_text = ""
+                try:
+                    malayalam_text = pytesseract.image_to_string(image, lang='mal')
+                except pytesseract.TesseractNotFoundError:
+                    logging.warning(f"Tesseract OCR executable not found for Malayalam on page {idx + 1} of {file_path}. Skipping Malayalam OCR.")
+                except pytesseract.pytesseract.TesseractError as e:
+                    logging.warning(f"Pytesseract OCR failed for Malayalam on page {idx + 1} of {file_path}: {e}. Skipping Malayalam OCR.")
+                except Exception as e:
+                    logging.error(f"Unexpected error during Malayalam OCR on page {idx + 1} of {file_path}: {e}")
 
-    # If Malayalam text extraction failed or empty, try English with EasyOCR
-    if not text_ml:
-        try:
-            reader = easyocr.Reader(['en'])
-            result = reader.readtext(image_path, detail=0)
-            return " ".join(result)  # type: ignore
-        except Exception:
-            return ""
+                page_text = english_text
+                if malayalam_text:
+                    page_text += " " + malayalam_text
+                text += page_text + " "
+        else:
+            logging.info(f"Performing OCR on image file {file_path}")
+            # EasyOCR for English text
+            english_result = reader.readtext(file_path, detail=0)
+            english_text = " ".join(english_result) # type: ignore
 
-    # If Malayalam extraction succeeded, return that text
-    return text_ml
+            malayalam_text = ""
+            try:
+                malayalam_text = pytesseract.image_to_string(file_path, lang='mal')
+            except pytesseract.TesseractNotFoundError:
+                logging.warning(f"Tesseract OCR executable not found for Malayalam on image file {file_path}. Skipping Malayalam OCR.")
+            except pytesseract.pytesseract.TesseractError as e:
+                logging.warning(f"Pytesseract OCR failed for Malayalam on image file {file_path}: {e}. Skipping Malayalam OCR.")
+            except Exception as e:
+                logging.error(f"Unexpected error during Malayalam OCR on image file {file_path}: {e}")
+
+            text = english_text
+            if malayalam_text:
+                text += " " + malayalam_text
+    except Exception as e:
+        logging.error(f"OCR extraction failed for {file_path}: {e}")
+        text = ""
+
+    return text.strip()
+
+def pdf_to_images(file_path: str) -> List[Image.Image]:
+    """
+    Convert a PDF file to a list of PIL Image objects, one per page.
+    """
+    try:
+        logging.info(f"Starting PDF to image conversion for {file_path}")
+        images = convert_from_path(file_path)
+        logging.info(f"Completed PDF to image conversion for {file_path}, {len(images)} pages found")
+        return images
+    except Exception as e:
+        logging.error(f"PDF to image conversion failed for {file_path}: {e}")
+        return []

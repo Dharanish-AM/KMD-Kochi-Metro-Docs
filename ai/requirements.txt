@@ -8,6 +8,7 @@ easyocr
 pytesseract
 Pillow
 pdfplumber
+pdf2image
 
 langdetect
 spacy
