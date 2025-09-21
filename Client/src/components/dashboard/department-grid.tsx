@@ -234,9 +234,8 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
                   size="sm" 
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Redirect to external dashboard URL
-                    const dashboardUrl = `https://dashboard.${department.name.toLowerCase()}.com/admin`;
-                    window.open(dashboardUrl, '_blank');
+                    const departmentPath = `/${department.name.toLowerCase()}`;
+                    navigate(departmentPath);
                   }}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
