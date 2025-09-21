@@ -24,6 +24,8 @@ import { DepartmentFileUpload } from "@/components/departments/department-file-u
 import { DepartmentFileHistory } from "@/components/departments/department-file-history"
 import { DepartmentStats } from "@/components/departments/department-stats"
 import { DepartmentSidebarLayout } from "@/components/layout/DepartmentSidebarLayout"
+import { DepartmentProfileSettings } from "@/components/departments/department-profile-settings"
+import { DepartmentNotifications } from "@/components/departments/department-notifications"
 
 interface DepartmentDashboardProps {
   department: string
@@ -255,6 +257,10 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
         return <DepartmentFileHistory department={department} />
       case "accepted":
         return <DepartmentFileHistory department={department} filter="accepted" />
+      case "profile":
+        return <DepartmentProfileSettings department={department} userName="John Doe" userRole="Document Manager" />
+      case "notifications":
+        return <DepartmentNotifications department={department} userName="John Doe" />
       default:
         return <DepartmentOverview department={department} deptInfo={deptInfo} theme={theme} />
     }

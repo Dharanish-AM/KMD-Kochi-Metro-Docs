@@ -220,11 +220,23 @@ export const DepartmentSidebarLayout = ({
               {/* User Menu Dropdown */}
               {isUserMenuOpen && (
                 <div className="mt-3 space-y-1 animate-in slide-in-from-top-2 duration-200">
-                  <button className="w-full flex items-center space-x-3 px-4 py-2 text-left text-white/90 hover:bg-white/10 rounded-lg transition-colors duration-150">
+                  <button 
+                    onClick={() => {
+                      onSectionChange("profile")
+                      setIsUserMenuOpen(false)
+                    }}
+                    className="w-full flex items-center space-x-3 px-4 py-2 text-left text-white/90 hover:bg-white/10 rounded-lg transition-colors duration-150"
+                  >
                     <Settings className="h-4 w-4" />
                     <span className="text-sm">Profile Settings</span>
                   </button>
-                  <button className="w-full flex items-center space-x-3 px-4 py-2 text-left text-white/90 hover:bg-white/10 rounded-lg transition-colors duration-150">
+                  <button 
+                    onClick={() => {
+                      onSectionChange("notifications")
+                      setIsUserMenuOpen(false)
+                    }}
+                    className="w-full flex items-center space-x-3 px-4 py-2 text-left text-white/90 hover:bg-white/10 rounded-lg transition-colors duration-150"
+                  >
                     <Bell className="h-4 w-4" />
                     <span className="text-sm">Notifications</span>
                   </button>
