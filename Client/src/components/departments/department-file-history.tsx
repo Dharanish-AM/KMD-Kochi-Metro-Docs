@@ -40,6 +40,90 @@ interface FileRecord {
   downloadCount: number
 }
 
+// Department theme configuration
+const departmentThemes = {
+  "Engineering": {
+    primary: "from-blue-600 via-blue-700 to-indigo-800",
+    accent: "bg-blue-500",
+    text: "text-blue-600",
+    lightBg: "from-blue-50 to-blue-100",
+    darkBg: "from-blue-900/20 to-blue-800/20",
+    border: "border-blue-200 dark:border-blue-700"
+  },
+  "HR": {
+    primary: "from-emerald-600 via-green-700 to-teal-800",
+    accent: "bg-emerald-500",
+    text: "text-emerald-600",
+    lightBg: "from-emerald-50 to-green-100",
+    darkBg: "from-emerald-900/20 to-green-800/20",
+    border: "border-emerald-200 dark:border-emerald-700"
+  },
+  "Legal": {
+    primary: "from-purple-600 via-violet-700 to-indigo-800",
+    accent: "bg-purple-500",
+    text: "text-purple-600",
+    lightBg: "from-purple-50 to-violet-100",
+    darkBg: "from-purple-900/20 to-violet-800/20",
+    border: "border-purple-200 dark:border-purple-700"
+  },
+  "Finance": {
+    primary: "from-amber-600 via-yellow-700 to-orange-800",
+    accent: "bg-amber-500",
+    text: "text-amber-600",
+    lightBg: "from-amber-50 to-yellow-100",
+    darkBg: "from-amber-900/20 to-yellow-800/20",
+    border: "border-amber-200 dark:border-amber-700"
+  },
+  "Safety": {
+    primary: "from-red-600 via-rose-700 to-pink-800",
+    accent: "bg-red-500",
+    text: "text-red-600",
+    lightBg: "from-red-50 to-rose-100",
+    darkBg: "from-red-900/20 to-rose-800/20",
+    border: "border-red-200 dark:border-red-700"
+  },
+  "Operations": {
+    primary: "from-cyan-600 via-sky-700 to-blue-800",
+    accent: "bg-cyan-500",
+    text: "text-cyan-600",
+    lightBg: "from-cyan-50 to-sky-100",
+    darkBg: "from-cyan-900/20 to-sky-800/20",
+    border: "border-cyan-200 dark:border-cyan-700"
+  },
+  "Procurement": {
+    primary: "from-teal-600 via-emerald-700 to-green-800",
+    accent: "bg-teal-500",
+    text: "text-teal-600",
+    lightBg: "from-teal-50 to-emerald-100",
+    darkBg: "from-teal-900/20 to-emerald-800/20",
+    border: "border-teal-200 dark:border-teal-700"
+  },
+  "Admin": {
+    primary: "from-slate-600 via-gray-700 to-zinc-800",
+    accent: "bg-slate-500",
+    text: "text-slate-600",
+    lightBg: "from-slate-50 to-gray-100",
+    darkBg: "from-slate-900/20 to-gray-800/20",
+    border: "border-slate-200 dark:border-slate-700"
+  },
+  "Maintenance": {
+    primary: "from-orange-600 via-red-700 to-rose-800",
+    accent: "bg-orange-500",
+    text: "text-orange-600",
+    lightBg: "from-orange-50 to-red-100",
+    darkBg: "from-orange-900/20 to-red-800/20",
+    border: "border-orange-200 dark:border-orange-700"
+  },
+  "Security": {
+    primary: "from-indigo-600 via-purple-700 to-violet-800",
+    accent: "bg-indigo-500",
+    text: "text-indigo-600",
+    lightBg: "from-indigo-50 to-purple-100",
+    darkBg: "from-indigo-900/20 to-purple-800/20",
+    border: "border-indigo-200 dark:border-indigo-700"
+  }
+}
+
 // Mock data for file history
 const generateMockFiles = (department: string): FileRecord[] => {
   const baseFiles = [
@@ -123,6 +207,9 @@ export const DepartmentFileHistory = ({ department, filter = "all" }: Department
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "accepted" | "rejected">(filter)
   const [categoryFilter, setCategoryFilter] = useState("all")
   
+  // Get department theme
+  const theme = departmentThemes[department as keyof typeof departmentThemes] || departmentThemes["Engineering"]
+  
   const allFiles = generateMockFiles(department)
   
   const filteredFiles = useMemo(() => {
@@ -177,15 +264,17 @@ export const DepartmentFileHistory = ({ department, filter = "all" }: Department
 
   return (
     <div className="space-y-8">
-      {/* Header Section */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl p-6 text-white">
+      {/* Header Section - Now uses department theme colors */}
+      <div className={`bg-gradient-to-br ${theme.primary} rounded-xl p-6 text-white shadow-2xl`}>
         <div className="flex items-center space-x-3 mb-2">
-          <FileText className="h-8 w-8" />
+          <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
+            <FileText className="h-6 w-6" />
+          </div>
           <h2 className="text-2xl font-bold">
             {filter === "accepted" ? "Accepted Documents" : "Document History"}
           </h2>
         </div>
-        <p className="text-purple-100">
+        <p className="text-white/90 font-medium">
           {filter === "accepted" 
             ? "View and download your approved documents"
             : "Track the status of all your submitted documents"
@@ -194,9 +283,9 @@ export const DepartmentFileHistory = ({ department, filter = "all" }: Department
       </div>
 
       {/* Filters */}
-      <Card className="border-2 border-dashed border-purple-200 dark:border-purple-700">
+      <Card className={`border-2 border-dashed ${theme.border} shadow-lg`}>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2 text-purple-600">
+          <CardTitle className={`flex items-center space-x-2 ${theme.text}`}>
             <Filter className="h-5 w-5" />
             <span>Filter & Search</span>
           </CardTitle>
@@ -247,13 +336,13 @@ export const DepartmentFileHistory = ({ department, filter = "all" }: Department
       {/* Stats Summary */}
       {filteredFiles.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200">
+          <Card className={`bg-gradient-to-br ${theme.lightBg} ${theme.darkBg} ${theme.border} shadow-lg`}>
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600">{filteredFiles.length}</div>
-              <div className="text-sm text-blue-600">Total Files</div>
+              <div className={`text-2xl font-bold ${theme.text}`}>{filteredFiles.length}</div>
+              <div className={`text-sm ${theme.text}`}>Total Files</div>
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200">
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 shadow-lg">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-green-600">
                 {filteredFiles.filter(f => f.status === 'accepted').length}

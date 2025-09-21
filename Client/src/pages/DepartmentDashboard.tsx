@@ -40,6 +40,100 @@ interface DepartmentInfo {
   staff: number
 }
 
+// Department theme configuration to match sidebar colors
+const departmentThemes = {
+  "Engineering": {
+    primary: "from-blue-600 via-blue-700 to-indigo-800",
+    secondary: "from-blue-50 to-indigo-50",
+    accent: "bg-blue-500",
+    text: "text-blue-600",
+    lightBg: "from-blue-50 to-blue-100",
+    darkBg: "from-blue-900/20 to-blue-800/20",
+    border: "border-blue-200 dark:border-blue-700"
+  },
+  "HR": {
+    primary: "from-emerald-600 via-green-700 to-teal-800",
+    secondary: "from-emerald-50 to-green-50",
+    accent: "bg-emerald-500",
+    text: "text-emerald-600",
+    lightBg: "from-emerald-50 to-green-100",
+    darkBg: "from-emerald-900/20 to-green-800/20",
+    border: "border-emerald-200 dark:border-emerald-700"
+  },
+  "Legal": {
+    primary: "from-purple-600 via-violet-700 to-indigo-800",
+    secondary: "from-purple-50 to-violet-50",
+    accent: "bg-purple-500",
+    text: "text-purple-600",
+    lightBg: "from-purple-50 to-violet-100",
+    darkBg: "from-purple-900/20 to-violet-800/20",
+    border: "border-purple-200 dark:border-purple-700"
+  },
+  "Finance": {
+    primary: "from-amber-600 via-yellow-700 to-orange-800",
+    secondary: "from-amber-50 to-yellow-50",
+    accent: "bg-amber-500",
+    text: "text-amber-600",
+    lightBg: "from-amber-50 to-yellow-100",
+    darkBg: "from-amber-900/20 to-yellow-800/20",
+    border: "border-amber-200 dark:border-amber-700"
+  },
+  "Safety": {
+    primary: "from-red-600 via-rose-700 to-pink-800",
+    secondary: "from-red-50 to-rose-50",
+    accent: "bg-red-500",
+    text: "text-red-600",
+    lightBg: "from-red-50 to-rose-100",
+    darkBg: "from-red-900/20 to-rose-800/20",
+    border: "border-red-200 dark:border-red-700"
+  },
+  "Operations": {
+    primary: "from-cyan-600 via-sky-700 to-blue-800",
+    secondary: "from-cyan-50 to-sky-50",
+    accent: "bg-cyan-500",
+    text: "text-cyan-600",
+    lightBg: "from-cyan-50 to-sky-100",
+    darkBg: "from-cyan-900/20 to-sky-800/20",
+    border: "border-cyan-200 dark:border-cyan-700"
+  },
+  "Procurement": {
+    primary: "from-teal-600 via-emerald-700 to-green-800",
+    secondary: "from-teal-50 to-emerald-50",
+    accent: "bg-teal-500",
+    text: "text-teal-600",
+    lightBg: "from-teal-50 to-emerald-100",
+    darkBg: "from-teal-900/20 to-emerald-800/20",
+    border: "border-teal-200 dark:border-teal-700"
+  },
+  "Admin": {
+    primary: "from-slate-600 via-gray-700 to-zinc-800",
+    secondary: "from-slate-50 to-gray-50",
+    accent: "bg-slate-500",
+    text: "text-slate-600",
+    lightBg: "from-slate-50 to-gray-100",
+    darkBg: "from-slate-900/20 to-gray-800/20",
+    border: "border-slate-200 dark:border-slate-700"
+  },
+  "Maintenance": {
+    primary: "from-orange-600 via-red-700 to-rose-800",
+    secondary: "from-orange-50 to-red-50",
+    accent: "bg-orange-500",
+    text: "text-orange-600",
+    lightBg: "from-orange-50 to-red-100",
+    darkBg: "from-orange-900/20 to-red-800/20",
+    border: "border-orange-200 dark:border-orange-700"
+  },
+  "Security": {
+    primary: "from-indigo-600 via-purple-700 to-violet-800",
+    secondary: "from-indigo-50 to-purple-50",
+    accent: "bg-indigo-500",
+    text: "text-indigo-600",
+    lightBg: "from-indigo-50 to-purple-100",
+    darkBg: "from-indigo-900/20 to-purple-800/20",
+    border: "border-indigo-200 dark:border-indigo-700"
+  }
+}
+
 // Mock data for different departments
 const departmentData: Record<string, DepartmentInfo> = {
   "Engineering": {
@@ -147,13 +241,14 @@ const departmentData: Record<string, DepartmentInfo> = {
 const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
   const [activeSection, setActiveSection] = useState("overview")
   const deptInfo = departmentData[department] || departmentData["Engineering"]
+  const theme = departmentThemes[department as keyof typeof departmentThemes] || departmentThemes["Engineering"]
   
   const completionRate = Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100)
 
   const renderContent = () => {
     switch (activeSection) {
       case "overview":
-        return <DepartmentOverview department={department} deptInfo={deptInfo} />
+        return <DepartmentOverview department={department} deptInfo={deptInfo} theme={theme} />
       case "upload":
         return <DepartmentFileUpload department={department} />
       case "history":
@@ -161,7 +256,7 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
       case "accepted":
         return <DepartmentFileHistory department={department} filter="accepted" />
       default:
-        return <DepartmentOverview department={department} deptInfo={deptInfo} />
+        return <DepartmentOverview department={department} deptInfo={deptInfo} theme={theme} />
     }
   }
 
@@ -181,42 +276,48 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
 }
 
 // Overview Component
-const DepartmentOverview = ({ department, deptInfo }: { department: string, deptInfo: any }) => {
+const DepartmentOverview = ({ department, deptInfo, theme }: { department: string, deptInfo: any, theme: any }) => {
   return (
     <div className="space-y-8">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-8 text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-black/10"></div>
+      {/* Welcome Banner - Now uses department theme colors */}
+      <div className={`bg-gradient-to-br ${theme.primary} rounded-xl p-8 text-white relative overflow-hidden shadow-2xl`}>
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-0 w-40 h-40 bg-white rounded-full -translate-x-20 -translate-y-20"></div>
+          <div className="absolute bottom-0 right-0 w-32 h-32 bg-white rounded-full translate-x-16 translate-y-16"></div>
+        </div>
         <div className="relative z-10">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold mb-2">Welcome to {deptInfo.name}</h1>
-              <p className="text-blue-100 text-lg">{deptInfo.description}</p>
+              <h1 className="text-3xl font-bold mb-2">Welcome to {department}</h1>
+              <p className="text-white/90 text-lg font-medium">{deptInfo.description}</p>
             </div>
-            <div className="hidden md:flex items-center space-x-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold">{deptInfo.totalFiles}</div>
-                <div className="text-blue-200 text-sm">Total Files</div>
+            <div className="hidden md:flex items-center space-x-8">
+              <div className="text-center bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+                <div className="text-3xl font-bold">{deptInfo.totalFiles}</div>
+                <div className="text-white/80 text-sm font-medium">Total Files</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">{deptInfo.acceptedFiles}</div>
-                <div className="text-blue-200 text-sm">Approved</div>
+              <div className="text-center bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+                <div className="text-3xl font-bold">{deptInfo.acceptedFiles}</div>
+                <div className="text-white/80 text-sm font-medium">Approved</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Quick Stats Cards */}
+      {/* Quick Stats Cards - Now uses department theme colors */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-700">
+        <Card className={`bg-gradient-to-br ${theme.lightBg} ${theme.darkBg} ${theme.border} shadow-lg hover:shadow-xl transition-all duration-300`}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Files</p>
-                <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">{deptInfo.totalFiles}</p>
+                <p className={`text-sm font-medium ${theme.text} dark:${theme.text.replace('text-', 'text-').replace('-600', '-400')}`}>Total Files</p>
+                <p className={`text-3xl font-bold ${theme.text.replace('-600', '-700')} dark:${theme.text.replace('text-', 'text-').replace('-600', '-300')}`}>{deptInfo.totalFiles}</p>
               </div>
-              <FileText className="h-12 w-12 text-blue-500" />
+              <div className={`w-12 h-12 ${theme.accent} rounded-xl flex items-center justify-center`}>
+                <FileText className="h-6 w-6 text-white" />
+              </div>
             </div>
             <div className="mt-4 flex items-center text-sm">
               <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
@@ -226,14 +327,16 @@ const DepartmentOverview = ({ department, deptInfo }: { department: string, dept
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border-yellow-200 dark:border-yellow-700">
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border-yellow-200 dark:border-yellow-700 shadow-lg hover:shadow-xl transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">Pending Review</p>
                 <p className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">{deptInfo.pendingFiles}</p>
               </div>
-              <Clock className="h-12 w-12 text-yellow-500" />
+              <div className="w-12 h-12 bg-yellow-500 rounded-xl flex items-center justify-center">
+                <Clock className="h-6 w-6 text-white" />
+              </div>
             </div>
             <div className="mt-4 flex items-center text-sm">
               <Target className="h-4 w-4 text-blue-500 mr-1" />
@@ -242,14 +345,16 @@ const DepartmentOverview = ({ department, deptInfo }: { department: string, dept
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-700">
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-700 shadow-lg hover:shadow-xl transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-600 dark:text-green-400">Approved</p>
                 <p className="text-3xl font-bold text-green-700 dark:text-green-300">{deptInfo.acceptedFiles}</p>
               </div>
-              <CheckCircle className="h-12 w-12 text-green-500" />
+              <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-white" />
+              </div>
             </div>
             <div className="mt-4 flex items-center text-sm">
               <Award className="h-4 w-4 text-green-500 mr-1" />
@@ -259,18 +364,20 @@ const DepartmentOverview = ({ department, deptInfo }: { department: string, dept
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-700">
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-700 shadow-lg hover:shadow-xl transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Active Staff</p>
                 <p className="text-3xl font-bold text-purple-700 dark:text-purple-300">{deptInfo.staff}</p>
               </div>
-              <Users className="h-12 w-12 text-purple-500" />
+              <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
+                <Users className="h-6 w-6 text-white" />
+              </div>
             </div>
             <div className="mt-4 flex items-center text-sm">
               <Calendar className="h-4 w-4 text-purple-500 mr-1" />
-              <span className="text-purple-600 font-medium">Last: {deptInfo.lastActivity}</span>
+              <span className="text-purple-600 font-medium">Last: 1h ago</span>
             </div>
           </CardContent>
         </Card>

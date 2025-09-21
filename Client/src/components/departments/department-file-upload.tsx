@@ -30,6 +30,100 @@ interface UploadFile {
   category?: string
 }
 
+// Department theme configuration
+const departmentThemes = {
+  "Engineering": {
+    primary: "from-blue-600 via-blue-700 to-indigo-800",
+    accent: "bg-blue-500",
+    text: "text-blue-600",
+    lightBg: "from-blue-50 to-blue-100",
+    darkBg: "from-blue-900/20 to-blue-800/20",
+    border: "border-blue-200 dark:border-blue-700",
+    hoverBorder: "hover:border-blue-400"
+  },
+  "HR": {
+    primary: "from-emerald-600 via-green-700 to-teal-800",
+    accent: "bg-emerald-500",
+    text: "text-emerald-600",
+    lightBg: "from-emerald-50 to-green-100",
+    darkBg: "from-emerald-900/20 to-green-800/20",
+    border: "border-emerald-200 dark:border-emerald-700",
+    hoverBorder: "hover:border-emerald-400"
+  },
+  "Legal": {
+    primary: "from-purple-600 via-violet-700 to-indigo-800",
+    accent: "bg-purple-500",
+    text: "text-purple-600",
+    lightBg: "from-purple-50 to-violet-100",
+    darkBg: "from-purple-900/20 to-violet-800/20",
+    border: "border-purple-200 dark:border-purple-700",
+    hoverBorder: "hover:border-purple-400"
+  },
+  "Finance": {
+    primary: "from-amber-600 via-yellow-700 to-orange-800",
+    accent: "bg-amber-500",
+    text: "text-amber-600",
+    lightBg: "from-amber-50 to-yellow-100",
+    darkBg: "from-amber-900/20 to-yellow-800/20",
+    border: "border-amber-200 dark:border-amber-700",
+    hoverBorder: "hover:border-amber-400"
+  },
+  "Safety": {
+    primary: "from-red-600 via-rose-700 to-pink-800",
+    accent: "bg-red-500",
+    text: "text-red-600",
+    lightBg: "from-red-50 to-rose-100",
+    darkBg: "from-red-900/20 to-rose-800/20",
+    border: "border-red-200 dark:border-red-700",
+    hoverBorder: "hover:border-red-400"
+  },
+  "Operations": {
+    primary: "from-cyan-600 via-sky-700 to-blue-800",
+    accent: "bg-cyan-500",
+    text: "text-cyan-600",
+    lightBg: "from-cyan-50 to-sky-100",
+    darkBg: "from-cyan-900/20 to-sky-800/20",
+    border: "border-cyan-200 dark:border-cyan-700",
+    hoverBorder: "hover:border-cyan-400"
+  },
+  "Procurement": {
+    primary: "from-teal-600 via-emerald-700 to-green-800",
+    accent: "bg-teal-500",
+    text: "text-teal-600",
+    lightBg: "from-teal-50 to-emerald-100",
+    darkBg: "from-teal-900/20 to-emerald-800/20",
+    border: "border-teal-200 dark:border-teal-700",
+    hoverBorder: "hover:border-teal-400"
+  },
+  "Admin": {
+    primary: "from-slate-600 via-gray-700 to-zinc-800",
+    accent: "bg-slate-500",
+    text: "text-slate-600",
+    lightBg: "from-slate-50 to-gray-100",
+    darkBg: "from-slate-900/20 to-gray-800/20",
+    border: "border-slate-200 dark:border-slate-700",
+    hoverBorder: "hover:border-slate-400"
+  },
+  "Maintenance": {
+    primary: "from-orange-600 via-red-700 to-rose-800",
+    accent: "bg-orange-500",
+    text: "text-orange-600",
+    lightBg: "from-orange-50 to-red-100",
+    darkBg: "from-orange-900/20 to-red-800/20",
+    border: "border-orange-200 dark:border-orange-700",
+    hoverBorder: "hover:border-orange-400"
+  },
+  "Security": {
+    primary: "from-indigo-600 via-purple-700 to-violet-800",
+    accent: "bg-indigo-500",
+    text: "text-indigo-600",
+    lightBg: "from-indigo-50 to-purple-100",
+    darkBg: "from-indigo-900/20 to-purple-800/20",
+    border: "border-indigo-200 dark:border-indigo-700",
+    hoverBorder: "hover:border-indigo-400"
+  }
+}
+
 const fileCategories = {
   "Engineering": ["Technical Reports", "Project Plans", "Specifications", "Drawings", "Test Results"],
   "HR": ["Employee Records", "Policies", "Training Materials", "Assessments", "Contracts"],
@@ -50,7 +144,9 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
   const [selectedCategory, setSelectedCategory] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
-
+  
+  // Get department theme
+  const theme = departmentThemes[department as keyof typeof departmentThemes] || departmentThemes["Engineering"]
   const categories = fileCategories[department as keyof typeof fileCategories] || fileCategories["Engineering"]
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -168,19 +264,21 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
 
   return (
     <div className="space-y-8">
-      {/* Header Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 text-white">
+      {/* Header Section - Now uses department theme colors */}
+      <div className={`bg-gradient-to-br ${theme.primary} rounded-xl p-6 text-white shadow-2xl`}>
         <div className="flex items-center space-x-3 mb-2">
-          <Upload className="h-8 w-8" />
+          <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
+            <Upload className="h-6 w-6" />
+          </div>
           <h2 className="text-2xl font-bold">Upload Documents</h2>
         </div>
-        <p className="text-blue-100">Submit your documents for {department} department review and approval</p>
+        <p className="text-white/90 font-medium">Submit your documents for {department} department review and approval</p>
       </div>
 
       {/* Upload Configuration */}
-      <Card className="border-2 border-dashed border-blue-200 dark:border-blue-700">
+      <Card className={`border-2 border-dashed ${theme.border} ${theme.hoverBorder} shadow-lg`}>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2 text-blue-600">
+          <CardTitle className={`flex items-center space-x-2 ${theme.text}`}>
             <FileText className="h-5 w-5" />
             <span>Document Information</span>
           </CardTitle>
@@ -223,8 +321,8 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
           <div
             className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
               isDragging
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-105"
-                : "border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                ? `${theme.border.replace('border-', 'border-').replace('-200', '-400')} bg-gradient-to-br ${theme.lightBg} ${theme.darkBg} scale-105`
+                : `border-gray-300 dark:border-gray-600 ${theme.hoverBorder} hover:bg-gray-50 dark:hover:bg-gray-700/50`
             }`}
             onDrop={handleDrop}
             onDragOver={(e) => {
@@ -234,9 +332,11 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
             onDragLeave={() => setIsDragging(false)}
           >
             <div className="space-y-4">
-              <Upload className={`mx-auto h-16 w-16 transition-colors ${
-                isDragging ? "text-blue-500" : "text-gray-400"
-              }`} />
+              <div className={`mx-auto w-16 h-16 ${isDragging ? theme.accent : 'bg-gray-100 dark:bg-gray-700'} rounded-xl flex items-center justify-center transition-all duration-300`}>
+                <Upload className={`h-8 w-8 transition-colors ${
+                  isDragging ? "text-white" : "text-gray-400"
+                }`} />
+              </div>
               <div className="space-y-2">
                 <p className="text-xl font-semibold text-gray-700 dark:text-gray-300">
                   {isDragging ? "Drop your files here" : "Drag & drop files here"}
@@ -284,12 +384,12 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
       {files.length > 0 && (
         <div className="space-y-6">
           {/* Summary Card */}
-          <Card className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/10 dark:to-blue-900/10 border-green-200 dark:border-green-700">
+          <Card className={`bg-gradient-to-br ${theme.lightBg} ${theme.darkBg} ${theme.border} shadow-lg`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                    <FileText className="h-6 w-6 text-green-600" />
+                  <div className={`w-12 h-12 ${theme.accent} rounded-full flex items-center justify-center`}>
+                    <FileText className="h-6 w-6 text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -305,7 +405,7 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
                   onClick={handleSubmitAll}
                   disabled={isSubmitting || !selectedCategory}
                   size="lg"
-                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  className={`bg-gradient-to-r ${theme.primary} hover:opacity-90 text-white shadow-lg hover:shadow-xl transition-all duration-200`}
                 >
                   {isSubmitting ? (
                     <>

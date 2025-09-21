@@ -235,7 +235,9 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
                   onClick={(e) => {
                     e.stopPropagation();
                     const departmentPath = `/${department.name.toLowerCase()}`;
-                    navigate(departmentPath);
+                    window.open(departmentPath, '_blank');
+                    //new page
+
                   }}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
