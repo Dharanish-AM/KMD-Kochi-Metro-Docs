@@ -17,6 +17,12 @@ const DepartmentSchema = new mongoose.Schema({
       ref: "User",
     },
   ],
+  documents: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Document",
+    },
+  ],
   createdAt: {
     type: Date,
     default: Date.now,

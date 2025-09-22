@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const KMRL_DEPARTMENTS = require("../constants/departments");
 const { Schema } = mongoose;
 
 const DocumentSchema = new Schema({
@@ -14,9 +13,10 @@ const DocumentSchema = new Schema({
     type: String,
     required: true,
   },
-  category: {
-    type: String,
-    enum: KMRL_DEPARTMENTS,
+  department: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Department",
+    required: true,
   },
   tags: {
     type: [String],

@@ -1,12 +1,11 @@
 const router = require("express").Router();
 const {
   createDepartment,
-  getDepartments,
+  getDepartment,
 } = require("../controllers/departmentController");
 const { verifyToken } = require("../utils/jwt");
 
-router.post("/create-department", verifyToken, createDepartment);
-router.get("/",verifyToken, getDepartments);
+router.post("/create-department", createDepartment);
+router.get("/:id", getDepartment);
 
 module.exports = router;
-    

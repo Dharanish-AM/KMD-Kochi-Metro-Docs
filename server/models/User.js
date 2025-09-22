@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const KMRL_DEPARTMENTS = require("../constants/departments");
 
 const userSchema = new mongoose.Schema({
   name: {

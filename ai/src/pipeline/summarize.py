@@ -1,31 +1,55 @@
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.llms import HuggingFacePipeline
 from transformers import pipeline
+import torch
 
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+# ===============================
+# Load fast summarization model
+device = 0 if torch.cuda.is_available() else -1
+summarization_pipeline = pipeline(
+    "summarization",
+    model="sshleifer/distilbart-cnn-12-6",
+    device=device
+)
+llm = HuggingFacePipeline(pipeline=summarization_pipeline)
 
+# ===============================
+# Prompt template
+template = """
+You are an AI assistant summarizing KMRL documents.
+Content:
+{text}
 
-def summarize_text(text, max_chunk_tokens=500, overlap=50):
-    """
-    Summarize text by splitting into smaller chunks if necessary.
-    """
-    words = text.split()
-    chunks = []
-    for i in range(0, len(words), max_chunk_tokens - overlap):
-        chunk = " ".join(words[i : i + max_chunk_tokens])
-        chunks.append(chunk)
+Write a concise, meaningful summary including key points.
+"""
+prompt = PromptTemplate(input_variables=["text"], template=template)
 
+# Chain
+chain = LLMChain(llm=llm, prompt=prompt)
+
+# ===============================
+# Text splitting function
+def split_text(text, chunk_size=500, overlap=50):
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=overlap,
+        separators=["\n\n", "\n", " "]
+    )
+    return splitter.split_text(text)
+
+# ===============================
+# Summarization function
+def summarize_text(text: str):
+    chunks = split_text(text)
     summaries = []
+
     for chunk in chunks:
-        try:
-            input_length = len(chunk.split())
-            # Dynamic limits
-            max_len = min(200, int(input_length * 0.8))
-            min_len = max(10, int(input_length * 0.3))
+        summary = chain.run(text=chunk)
+        summaries.append(summary)
 
-            summary = summarizer(
-                chunk, max_length=max_len, min_length=min_len, do_sample=False
-            )[0]["summary_text"]
-            summaries.append(summary)
-        except Exception as e:
-            summaries.append(f"[Error summarizing chunk: {e}]")
+    # Combine chunk summaries
+    final_summary = " ".join(summaries)
+    return final_summary
 
-    return " ".join(summaries)

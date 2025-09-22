@@ -28,9 +28,15 @@ exports.createUser = async (req, res) => {
     });
 
     await newUser.save();
+    if (!department.users) {
+      department.users = [];
+    }
+    department.users.push(newUser._id);
+    await department.save();
+    const savedUser = await User.findById(newUser._id).select("-password").populate("department");
     res
       .status(201)
-      .json({ message: "User created successfully", user: newUser });
+      .json({ message: "User created successfully", user: savedUser });
   } catch (error) {
     console.error("Error creating user:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -54,6 +60,23 @@ exports.login = async (req, res) => {
     res.status(200).json({ message: "Login successful", user, token });
   } catch (error) {
     console.error("Error during login:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.getUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+    const user = await User.findById(userId).select("-password").populate("department", "-employees");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.status(200).json(user);
+  } catch (error) {
+    console.error("Error fetching user:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

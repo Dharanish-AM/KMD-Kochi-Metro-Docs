@@ -14,6 +14,7 @@ langdetect
 spacy
 sentence-transformers
 faiss-cpu
+sentencepiece
 
 transformers
 torch

@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-
 @app.post("/process")
 async def process_file(file: UploadFile):
     logger.info(f"Received file: {file.filename}")
