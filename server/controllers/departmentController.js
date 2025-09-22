@@ -40,3 +40,16 @@ exports.getDepartment = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+exports.getDepartmentsUI = async (req, res) => {
+  try {
+    const departments = await Department.find().select("name description");
+    if (!departments) {
+      return res.status(404).json({ message: "Departments not found" });
+    }
+    res.status(200).json(departments);
+  } catch (error) {
+    console.error("Error fetching department:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
