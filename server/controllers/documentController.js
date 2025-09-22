@@ -6,6 +6,7 @@ const Employee = require("../models/User");
 const Department = require("../models/Department");
 const path = require("path");
 const formidable = require("formidable");
+const mongoose = require("mongoose");
 
 exports.uploadDocument = async (req, res) => {
   const userId = req.query.userId;
@@ -143,10 +144,36 @@ exports.uploadDocument = async (req, res) => {
   }
 };
 
-exports.getDocuments = async (req, res) => {};
+exports.getDocumentsByDepartment = async (req, res) => {
+  try {
+    const departmentId = req.params.departmentId;
+    if (!mongoose.Types.ObjectId.isValid(departmentId)) {
+      console.warn(`Invalid departmentId provided: ${departmentId}`);
+      return res.status(400).json({ error: "Invalid department ID" });
+    }
+
+    const documents = await Document.find({ department: departmentId })
+      .populate("uploadedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    if (!documents || documents.length === 0) {
+      console.info(`No documents found for departmentId: ${departmentId}`);
+      return res.status(200).json({
+        documents: [],
+        message: "No documents found for this department",
+      });
+    }
+
+    res.status(200).json({ documents });
+  } catch (error) {
+    console.error(
+      `Error fetching documents for departmentId ${req.params.departmentId}:`,
+      error
+    );
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 
 exports.getDocumentById = async (req, res) => {};
-
-exports.getDocumentsByDepartment = async (req, res) => {};
 
 exports.deleteDocument = async (req, res) => {};

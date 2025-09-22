@@ -1,6 +1,5 @@
 import logging
 
-
 def extract_text_pdf(file_path):
     import pdfplumber
 
@@ -17,6 +16,7 @@ def extract_text_pdf(file_path):
     except Exception as e:
         logger.error(f"Failed to extract text from PDF file {file_path}: {e}")
         text = ""
+    logger.debug(f"Extracted text from PDF file {file_path}: {text}")
     return text
 
 
@@ -28,7 +28,9 @@ def extract_text_docx(file_path):
     try:
         doc = Document(file_path)
         text = "\n".join([p.text for p in doc.paragraphs])
-        return text.strip()
+        text = text.strip()
+        logger.debug(f"Extracted text from docx file {file_path}: {text}")
+        return text
     except Exception as e:
         logger.error(f"Failed to extract text from docx file {file_path}: {e}")
         return ""
