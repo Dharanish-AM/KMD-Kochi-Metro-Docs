@@ -1,20 +1,30 @@
-const Admin = require("../models/Admin");
+const User = require("../models/User");
+const bcrypt = require("bcryptjs");
 
 exports.createAdmin = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    const existingAdmin = await Admin.findOne({ email });
-    if (existingAdmin) {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
       return res
         .status(400)
-        .json({ message: "Admin with this email already exists" });
+        .json({ message: "User with this email already exists" });
     }
 
-    const newAdmin = new Admin({ name, email, password });
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newAdmin = new User({ 
+      name, 
+      email, 
+      password: hashedPassword,
+      role: "Admin",
+      phone: req.body.phone || "" // Admin might not have phone, make it optional
+    });
     await newAdmin.save();
 
-    const savedAdmin = await Admin.findById(newAdmin._id).select("-password");
+    const savedAdmin = await User.findById(newAdmin._id).select("-password");
 
     res
       .status(201)
@@ -31,8 +41,8 @@ exports.getAdmin = async (req, res) => {
     if (!adminId) {
       return res.status(400).json({ message: "Admin ID is required" });
     }
-    const admin = await Admin.findById(adminId).select("-password");
-    if (!admin) {
+    const admin = await User.findById(adminId).select("-password");
+    if (!admin || admin.role !== "Admin") {
       return res.status(404).json({ message: "Admin not found" });
     }
     res.status(200).json(admin);

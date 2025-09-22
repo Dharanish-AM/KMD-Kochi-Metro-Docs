@@ -12,8 +12,11 @@ const userSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: true,
+    required: function() {
+      return this.role !== "Admin";
+    },
     unique: true,
+    sparse: true, // Allows multiple documents with null/undefined values
   },
   password: {
     type: String,
@@ -27,7 +30,9 @@ const userSchema = new mongoose.Schema({
   department: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Department",
-    required: true,
+    required: function() {
+      return this.role !== "Admin";
+    },
   },
   joinedAt: {
     type: Date,
