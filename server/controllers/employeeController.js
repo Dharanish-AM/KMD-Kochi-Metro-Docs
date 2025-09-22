@@ -47,10 +47,10 @@ exports.createUser = async (req, res) => {
     // Add user to department if department exists
     if (departmentId) {
       const department = await Department.findById(departmentId);
-      if (!department.users) {
-        department.users = [];
+      if (!department.employees) {
+        department.employees = [];
       }
-      department.users.push(newUser._id);
+      department.employees.push(newUser._id);
       await department.save();
     }
 
