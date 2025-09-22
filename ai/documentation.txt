@@ -1,0 +1,15 @@
+FOLDER STRUCTURE:
+└── 📁ai
+    └── 📁src
+        └── 📁pipeline
+            ├── classify.py     # Doc type classification
+            ├── embeddings.py   # Embedding + Vector DB
+            ├── metadata.py     # Dates, amounts, keywords
+            ├── ocr.py          # OCR for scanned docs/images
+            ├── parser.py       # PDF/DOCX text extraction
+            ├── summarize.py    # Summarization
+            ├── translate.py    # English ↔ Malayalam
+        └── 📁utils             # helpers (logging, configs, lang detect, chunking)
+        ├── api.py              # FastAPI entrypoint
+    └── requirements.txt
+
