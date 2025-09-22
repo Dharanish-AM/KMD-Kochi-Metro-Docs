@@ -73,10 +73,10 @@ async def process_file(file: UploadFile):
     return {
         "file_name": file.filename,
         "detected_language": detected_lang,
-        "original_text": text[:500],  # truncated preview
-        "translated_text": translated_text[:500],
+        "original_text": text,
+        "translated_text": translated_text,
         "classification": doc_class,
         "metadata": meta,
-        "embedding_vector": embedding_vector,  # full vector
+        "embedding_vector": embedding_vector, 
         "summary": summary,
     }
