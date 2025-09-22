@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+
 @app.post("/process")
 async def process_file(file: UploadFile):
     logger.info(f"Received file: {file.filename}")
@@ -76,6 +77,6 @@ async def process_file(file: UploadFile):
         "translated_text": translated_text,
         "classification": doc_class,
         "metadata": meta,
-        "embedding_vector": embedding_vector, 
+        "embedding_vector": embedding_vector,
         "summary": summary,
     }

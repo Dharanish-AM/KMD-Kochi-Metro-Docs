@@ -1,5 +1,10 @@
 from transformers import pipeline
 import numpy as np
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize zero-shot classifier once
 classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
@@ -328,33 +333,41 @@ def classify_doc(text: str) -> dict:
     - Fallback to zero-shot classification for general cases
     Returns primary department and full scores.
     """
-    text_lower = text.lower()
-
-    # Keyword-based detection (high-confidence)
-    for dept, keywords in DEPT_KEYWORDS.items():
-        if any(k.lower() in text_lower for k in keywords):
-            # Keyword matched, high-confidence override
-            result = classifier(text, candidate_labels=KMRL_DEPARTMENTS)
-            scores = result["scores"]  # type: ignore
-            labels = result["labels"]  # type: ignore
-            # Boost the department score for matched keyword
-            boost_index = labels.index(dept)  # type: ignore
-            scores[boost_index] += 0.2  # increase confidence
-            primary_department = labels[np.argmax(scores)]
-            return {
-                "primary_department": primary_department,
-                "labels": labels,
-                "scores": scores,
-            }
-
-    # Fallback: zero-shot classification
     if not text.strip():
+        logger.info("Empty text received; returning Unknown.")
         return {"primary_department": "Unknown", "labels": [], "scores": []}
 
+    text_lower = text.lower()
+
+    # Check for keyword matches first
+    matched_dept = None
+    for dept, keywords in DEPT_KEYWORDS.items():
+        if any(k.lower() in text_lower for k in keywords):
+            matched_dept = dept
+            logger.info(f"Keyword match found for department: {dept}")
+            break
+
+    # Run zero-shot classification once
     result = classifier(text, candidate_labels=KMRL_DEPARTMENTS)
-    scores = result["scores"]  # type: ignore
-    labels = result["labels"]  # type: ignore
+    scores = result["scores"]
+    labels = result["labels"]
+
+    # If keyword matched, boost its score
+    if matched_dept:
+        if matched_dept in labels:
+            boost_index = labels.index(matched_dept)
+            scores[boost_index] += 0.2
+            logger.info(
+                f"Boosted score for {matched_dept} by 0.2 due to keyword match."
+            )
+        else:
+            logger.warning(
+                f"Matched department '{matched_dept}' not found in classifier labels."
+            )
+
     primary_department = labels[np.argmax(scores)]
+
+    logger.info(f"Primary department classified as: {primary_department}")
 
     return {
         "primary_department": primary_department,

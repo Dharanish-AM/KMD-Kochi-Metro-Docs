@@ -1,10 +1,10 @@
 const router = require("express").Router();
 const {
   uploadDocument,
-  getDocuments,
+  getDocumentsByDepartment,
 } = require("../controllers/documentController");
 
 router.post("/upload", uploadDocument);
-router.get("/", getDocuments);
+router.get("/documents-by-department/:departmentId", getDocumentsByDepartment);
 
 module.exports = router;

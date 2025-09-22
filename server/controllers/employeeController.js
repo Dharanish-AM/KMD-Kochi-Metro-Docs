@@ -9,7 +9,9 @@ exports.createUser = async (req, res) => {
 
     // For Admin role, department is optional
     if (role !== "Admin" && !departmentId) {
-      return res.status(400).json({ message: "Department ID is required for non-admin users" });
+      return res
+        .status(400)
+        .json({ message: "Department ID is required for non-admin users" });
     }
 
     // If departmentId is provided, validate it exists
@@ -24,7 +26,7 @@ exports.createUser = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
-    
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -54,7 +56,9 @@ exports.createUser = async (req, res) => {
       await department.save();
     }
 
-    const savedUser = await User.findById(newUser._id).select("-password").populate("department");
+    const savedUser = await User.findById(newUser._id)
+      .select("-password")
+      .populate("department");
     res
       .status(201)
       .json({ message: "User created successfully", user: savedUser });
@@ -72,7 +76,7 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
-    
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid email or password" });
@@ -105,7 +109,7 @@ exports.login = async (req, res) => {
         joinedAt: user.joinedAt,
       },
       token,
-      userType: user.role === "Admin" ? "admin" : "employee"
+      userType: user.role === "Admin" ? "admin" : "employee",
     };
 
     res.status(200).json(response);
@@ -121,7 +125,9 @@ exports.getUser = async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: "User ID is required" });
     }
-    const user = await User.findById(userId).select("-password").populate("department", "-employees");
+    const user = await User.findById(userId)
+      .select("-password")
+      .populate("department", "-employees");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
