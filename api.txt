@@ -1,0 +1,254 @@
+# KMD - Kochi Metro Documents Management System - API Requirements
+
+## AUTHENTICATION APIs
+
+### 1. User Authentication
+- POST /api/auth/login
+- POST /api/auth/logout  
+- POST /api/auth/refresh-token
+- POST /api/auth/forgot-password
+- POST /api/auth/reset-password
+- GET /api/auth/me (get current user info)
+
+## USER MANAGEMENT APIs
+
+### 2. User CRUD Operations
+- GET /api/users - Get all users (with pagination, filters)
+- GET /api/users/:id - Get user by ID
+- POST /api/users - Create new user
+- PUT /api/users/:id - Update user
+- DELETE /api/users/:id - Delete user
+- PATCH /api/users/:id/status - Update user status (active/inactive/pending)
+- PATCH /api/users/:id/permissions - Update user permissions
+- GET /api/users/department/:departmentId - Get users by department
+
+### 3. User Profile Management
+- GET /api/profile - Get current user profile
+- PUT /api/profile - Update user profile
+- POST /api/profile/avatar - Upload user avatar
+- PUT /api/profile/preferences - Update user preferences
+- PUT /api/profile/notifications-settings - Update notification preferences
+- PUT /api/profile/password - Change password
+
+## DEPARTMENT MANAGEMENT APIs
+
+### 4. Department Operations
+- GET /api/departments - Get all departments
+- GET /api/departments/:id - Get department by ID
+- POST /api/departments - Create new department
+- PUT /api/departments/:id - Update department
+- DELETE /api/departments/:id - Delete department
+- GET /api/departments/:id/stats - Get department statistics
+- GET /api/departments/:id/users - Get department users
+- POST /api/departments/:id/users - Add user to department
+
+## DOCUMENT MANAGEMENT APIs
+
+### 5. Document Upload & Management
+- POST /api/documents/upload - Upload single/multiple documents
+- POST /api/documents/bulk-upload - Bulk upload with metadata
+- GET /api/documents - Get all documents (with filters, pagination)
+- GET /api/documents/:id - Get document by ID
+- PUT /api/documents/:id - Update document metadata
+- DELETE /api/documents/:id - Delete document
+- GET /api/documents/:id/download - Download document
+- GET /api/documents/:id/preview - Preview document
+
+### 6. Document Review & Approval
+- GET /api/documents/pending - Get pending documents for review
+- POST /api/documents/:id/approve - Approve document
+- POST /api/documents/:id/reject - Reject document with comments
+- GET /api/documents/:id/history - Get document review history
+- POST /api/documents/:id/comments - Add review comments
+
+### 7. Document Categories & Organization
+- GET /api/documents/categories - Get document categories
+- GET /api/documents/department/:departmentId - Get documents by department
+- GET /api/documents/category/:category - Get documents by category
+- GET /api/documents/search - Search documents
+- GET /api/documents/recent - Get recently uploaded documents
+
+## ANALYTICS & REPORTING APIs
+
+### 8. Dashboard Statistics
+- GET /api/analytics/overview - Overall system statistics
+- GET /api/analytics/department/:id - Department-specific analytics
+- GET /api/analytics/user/:id - User-specific analytics
+- GET /api/analytics/documents/trends - Document upload/approval trends
+- GET /api/analytics/performance - System performance metrics
+
+### 9. Reports Generation
+- GET /api/reports/department/:id - Generate department report
+- GET /api/reports/compliance - Generate compliance report
+- GET /api/reports/activity - Generate activity report
+- GET /api/reports/export/:type - Export reports (PDF/Excel)
+
+## NOTIFICATION SYSTEM APIs
+
+### 10. Notifications Management
+- GET /api/notifications - Get user notifications
+- GET /api/notifications/unread - Get unread notifications
+- POST /api/notifications/mark-read/:id - Mark notification as read
+- POST /api/notifications/mark-all-read - Mark all notifications as read
+- DELETE /api/notifications/:id - Delete notification
+- POST /api/notifications/send - Send notification (admin)
+
+### 11. System Notifications
+- POST /api/notifications/broadcast - Broadcast to all users
+- POST /api/notifications/department/:id - Send to department
+- GET /api/notifications/system - Get system notifications
+- POST /api/notifications/reminder - Send document review reminders
+
+## FILE HANDLING APIs
+
+### 12. File Operations
+- POST /api/files/upload - Generic file upload
+- GET /api/files/:id/metadata - Get file metadata
+- POST /api/files/validate - Validate file before upload
+- GET /api/files/types - Get supported file types
+- POST /api/files/compress - Compress large files
+- GET /api/files/:id/thumbnail - Get file thumbnail
+
+## ADMIN OPERATIONS APIs
+
+### 13. System Administration
+- GET /api/admin/system-info - Get system information
+- GET /api/admin/logs - Get system logs
+- POST /api/admin/backup - Create system backup
+- POST /api/admin/maintenance - System maintenance operations
+- GET /api/admin/storage-usage - Get storage usage statistics
+
+### 14. User Administration
+- GET /api/admin/users/pending - Get pending user approvals
+- POST /api/admin/users/:id/approve - Approve user registration
+- POST /api/admin/users/bulk-invite - Bulk invite users
+- GET /api/admin/users/activity - Get user activity logs
+- POST /api/admin/users/:id/deactivate - Deactivate user account
+
+## SEARCH & FILTERING APIs
+
+### 15. Search Operations
+- GET /api/search/global - Global search across all content
+- GET /api/search/documents - Search documents with filters
+- GET /api/search/users - Search users
+- GET /api/search/departments - Search departments
+- GET /api/search/suggestions - Get search suggestions
+
+## SECURITY & AUDIT APIs
+
+### 16. Security Operations
+- GET /api/security/audit-logs - Get audit logs
+- POST /api/security/report-incident - Report security incident
+- GET /api/security/access-logs - Get access logs
+- POST /api/security/change-permissions - Modify user permissions
+- GET /api/security/compliance-check - Run compliance checks
+
+## SETTINGS & CONFIGURATION APIs
+
+### 17. System Settings
+- GET /api/settings/system - Get system settings
+- PUT /api/settings/system - Update system settings
+- GET /api/settings/departments - Get department settings
+- PUT /api/settings/departments/:id - Update department settings
+- GET /api/settings/notifications - Get notification settings
+- PUT /api/settings/notifications - Update notification settings
+
+## IMPORTANT POINTS EXTRACTION APIs
+
+### 18. AI-Powered Analysis
+- POST /api/analysis/extract-points - Extract important points from documents
+- GET /api/analysis/points/:documentId - Get extracted points for document
+- POST /api/analysis/categorize - Auto-categorize documents
+- GET /api/analysis/insights/:departmentId - Get department insights
+- POST /api/analysis/compliance-check - Check document compliance
+
+## INTEGRATION APIs
+
+### 19. External Integrations
+- POST /api/integrations/email/send - Send email notifications
+- GET /api/integrations/calendar/events - Get calendar events
+- POST /api/integrations/backup/cloud - Backup to cloud storage
+- GET /api/integrations/compliance/reports - Get compliance reports
+
+## MOBILE APP SUPPORT APIs
+
+### 20. Mobile-Specific
+- GET /api/mobile/notifications/push - Get push notifications
+- POST /api/mobile/files/upload - Mobile file upload
+- GET /api/mobile/dashboard - Mobile dashboard data
+- GET /api/mobile/documents/recent - Recent documents for mobile
+
+## REAL-TIME FEATURES
+
+### 21. WebSocket Events
+- WS /api/ws/notifications - Real-time notifications
+- WS /api/ws/document-status - Real-time document status updates
+- WS /api/ws/user-activity - Real-time user activity
+- WS /api/ws/system-alerts - Real-time system alerts
+
+## DATA EXPORT & IMPORT APIs
+
+### 22. Data Operations
+- POST /api/export/users - Export users data
+- POST /api/export/documents - Export documents metadata
+- POST /api/export/analytics - Export analytics data
+- POST /api/import/users - Import users from CSV/Excel
+- POST /api/import/documents - Bulk import documents
+
+## COMPLIANCE & REGULATIONS APIs
+
+### 23. Compliance Management
+- GET /api/compliance/requirements - Get compliance requirements
+- POST /api/compliance/check/:documentId - Check document compliance
+- GET /api/compliance/reports - Get compliance reports
+- POST /api/compliance/violations/report - Report compliance violation
+
+## ERROR HANDLING & LOGGING
+
+### 24. System Monitoring
+- GET /api/health - Health check endpoint
+- GET /api/status - System status
+- POST /api/errors/report - Report client-side errors
+- GET /api/logs/access - Get access logs
+- GET /api/logs/errors - Get error logs
+
+---
+
+## ADDITIONAL CONSIDERATIONS:
+
+### Authentication & Authorization:
+- JWT-based authentication
+- Role-based access control (RBAC)
+- Department-specific permissions
+- Permission levels: read, write, delete, admin
+
+### File Upload Specifications:
+- Supported formats: PDF, DOC, DOCX, JPG, PNG
+- Maximum file size: 10MB per file
+- Bulk upload support
+- Progress tracking for uploads
+
+### Database Requirements:
+- User management with roles and permissions
+- Department structure and hierarchy  
+- Document metadata and file storage
+- Audit trails and activity logs
+- Notification system
+- Analytics and reporting data
+
+### Security Features:
+- Input validation and sanitization
+- Rate limiting
+- CORS configuration
+- Secure file upload handling
+- Audit logging
+- Data encryption
+
+### Performance Considerations:
+- Pagination for large datasets
+- File compression and optimization
+- Caching for frequently accessed data
+- Background job processing for heavy operations
+- Search indexing for quick document retrieval
+
+This comprehensive API structure supports a full-featured document management system for the Kochi Metro with multi-department support, user management, document workflow, analytics, and compliance features.

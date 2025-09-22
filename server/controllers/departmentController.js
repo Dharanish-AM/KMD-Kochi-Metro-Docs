@@ -42,14 +42,21 @@ exports.getDepartment = async (req, res) => {
 };
 
 exports.getDepartmentsUI = async (req, res) => {
+  console.log("Fetching departments for UI");
   try {
-    const departments = await Department.find().select("name description");
+    const departments = await Department.find()
+      .select("name description employees documents createdAt")
+      .populate("employees", "name")
+      .populate("documents", "title");
+    
     if (!departments) {
       return res.status(404).json({ message: "Departments not found" });
     }
+    console.log(departments)
+    
     res.status(200).json(departments);
   } catch (error) {
-    console.error("Error fetching department:", error);
+    console.error("Error fetching departments:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useNavigate } from "react-router-dom";
 import Lottie from "lottie-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import LoginLottie from "@/Utils/Lotties/Loginlottie.json";
+import axiosInstance from "@/Utils/Auth/axiosInstance";
+import { setToken, setUser, setUserType } from "@/Utils/Auth/token";
+import { showToast } from "@/Utils/toaster";
 
 // Form validation schema
 const loginSchema = z.object({
@@ -23,7 +26,18 @@ type LoginFormData = z.infer<typeof loginSchema>;
 const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  // Prevent automatic scrolling
+  useEffect(() => {
+    // Disable smooth scrolling behavior globally for this component
+    const originalScrollBehavior = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = 'auto';
+    
+    return () => {
+      document.documentElement.style.scrollBehavior = originalScrollBehavior;
+    };
+  }, []);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -31,28 +45,62 @@ const LoginPage = () => {
       email: "",
       password: "",
     },
+    mode: "onChange", // Validate on change to prevent scroll on submit
   });
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    setError("");
     
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Call the backend login API
+      const response = await axiosInstance.post("/api/employee/login", {
+        email: data.email,
+        password: data.password,
+      });
+
+      // Store token and user data in localStorage
+      const { token, user, userType } = response.data;
       
-      console.log("Login data:", data);
-      // Here you would handle the actual login logic
+      // Store the token
+      setToken(token);
       
-    } catch (err) {
-      setError("Invalid credentials. Please try again.");
+      // Store user data using utility functions
+      setUser(user);
+      setUserType(userType);
+      
+      console.log("Login successful:", response.data);
+      
+      // Show success toast
+      showToast.success(
+        "Login Successful!", 
+        `Welcome back, ${user.name}!`
+      );
+      
+      // Redirect to dashboard
+      navigate("/");
+      
+    } catch (err: any) {
+      console.error("Login error:", err);
+      
+      // Handle error response with toast
+      if (err.response?.data?.message) {
+        showToast.error("Login Failed", err.response.data.message);
+      } else {
+        showToast.error(
+          "Login Failed", 
+          "An error occurred during login. Please try again."
+        );
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+    <div 
+      className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4"
+      style={{ scrollBehavior: 'auto', overflowAnchor: 'none' }}
+    >
       <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden">
         <div className="flex flex-col lg:flex-row min-h-[600px]">
           {/* Left Side - Lottie Animation - Hidden on mobile */}
@@ -92,16 +140,13 @@ const LoginPage = () => {
                 </CardHeader>
 
                 <CardContent>
-                  {error && (
-                    <Alert className="mb-6 border-red-200 bg-red-50">
-                      <AlertDescription className="text-red-700">
-                        {error}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
                   <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <form 
+                      onSubmit={form.handleSubmit(onSubmit)} 
+                      className="space-y-6"
+                      style={{ scrollMarginTop: 0 }}
+                      onInvalid={(e) => e.preventDefault()}
+                    >
                       {/* Email Field */}
                       <FormField
                         control={form.control}
