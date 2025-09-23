@@ -8,7 +8,9 @@ if (!qdrantUrl) {
 
 const client = new QdrantClient({ url: qdrantUrl });
 
-console.log(`Qdrant client initialized with URL: ${qdrantUrl}. Client is ready.`);
+console.log(
+  `Qdrant client initialized with URL: ${qdrantUrl}. Client is ready.`
+);
 
 /**
  * Create a collection if it doesn't exist
@@ -51,7 +53,10 @@ async function createCollectionIfNotExists(
     const defaultVectorSize = 768;
     await createCollectionIfNotExists("documents", defaultVectorSize, "Cosine");
   } catch (err) {
-    console.error("Failed to ensure 'documents' collection exists on startup:", err);
+    console.error(
+      "Failed to ensure 'documents' collection exists on startup:",
+      err
+    );
   }
 })();
 

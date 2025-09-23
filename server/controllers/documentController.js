@@ -264,12 +264,10 @@ exports.RAGSearchDocument = async (req, res) => {
       qdrantResults = searchResponse || [];
     } catch (qErr) {
       console.error("❌ Failed to search Qdrant:", qErr.message);
-      return res
-        .status(500)
-        .json({
-          error: "Failed to search documents in Qdrant",
-          details: qErr.message,
-        });
+      return res.status(500).json({
+        error: "Failed to search documents in Qdrant",
+        details: qErr.message,
+      });
     }
 
     // Step 3: Filter by similarity threshold
@@ -315,6 +313,84 @@ exports.RAGSearchDocument = async (req, res) => {
   }
 };
 
-exports.getDocumentById = async (req, res) => {};
+exports.DocumentPreview = async (req, res) => {
+  try {
+    const { documentId } = req.query;
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ error: "Invalid document ID" });
+    }
+
+    const document = await Document.findById(documentId);
+    if (!document) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const filePath = document.fileUrl;
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found on server" });
+    }
+
+    // Determine file name and MIME type
+    const fileName = document.fileName || path.basename(filePath);
+    const fileExt = path.extname(filePath).toLowerCase();
+    let contentType = "application/octet-stream"; // default
+
+    if (fileExt === ".pdf") contentType = "application/pdf";
+    else if (fileExt === ".docx")
+      contentType =
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    else if (fileExt === ".doc") contentType = "application/msword";
+    else if (fileExt === ".txt") contentType = "text/plain";
+
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    res.setHeader("Content-Type", contentType);
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    fileStream.on("error", (err) => {
+      console.error(`❌ Error streaming document ${documentId} file:`, err);
+      res.status(500).end("Error serving file");
+    });
+  } catch (error) {
+    console.error("❌ Error fetching document preview:", error);
+    return res.status(500).json({ error: "Failed to fetch document preview" });
+  }
+};
+
+exports.DownloadDocument = async (req, res) => {
+  try {
+    const { documentId } = req.query;
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ error: "Invalid document ID" });
+    }
+
+    const document = await Document.findById(documentId);
+    if (!document) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const filePath = document.fileUrl;
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found on server" });
+    }
+
+    const fileName = document.fileName || path.basename(filePath);
+
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    fileStream.on("error", (err) => {
+      console.error(`❌ Error downloading document ${documentId}:`, err);
+      res.status(500).end("Error downloading file");
+    });
+  } catch (error) {
+    console.error("❌ Error handling document download:", error);
+    return res.status(500).json({ error: "Failed to download document" });
+  }
+};
 
 exports.deleteDocument = async (req, res) => {};
