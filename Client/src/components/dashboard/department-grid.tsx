@@ -21,16 +21,38 @@ import {
 import { useNavigate } from "react-router-dom"
 
 const departmentIcons = {
+  "Operations & Maintenance": Zap,
+  "Engineering & Infrastructure": Wrench,
+  "Electrical & Mechanical": Wrench,
+  "Finance & Accounts": DollarSign,
+  "Human Resources": Users,
+  "Legal & Compliance": Scale,
+  "Procurement & Contracts": Truck,
+  "Corporate Communications": Heart,
+  "Business Development": Building2,
+  "Vigilance & Security": Shield,
+  "Information Technology & Systems": Zap,
+  "Planning & Development": Building2,
+  "Environment & Sustainability": Heart,
+  "Customer Relations & Services": UserCheck,
+  "Project Management": Building2,
+  
+  // Fallback mappings for shorter names
+  "Operations": Zap,
   "Engineering": Wrench,
+  "Electrical": Wrench,
+  "Finance": DollarSign,
   "HR": Users,
   "Legal": Scale,
-  "Finance": DollarSign,
-  "Safety": Shield,
-  "Operations": Zap,
   "Procurement": Truck,
-  "Admin": UserCheck,
-  "Maintenance": Wrench,
-  "Security": Shield
+  "Communications": Heart,
+  "Business": Building2,
+  "Security": Shield,
+  "IT": Zap,
+  "Planning": Building2,
+  "Environment": Heart,
+  "Customer": UserCheck,
+  "Project": Building2
 }
 
 interface Department {
@@ -42,70 +64,8 @@ interface Department {
   completionRate: number
   lastUpdated: string
   status: "active" | "maintenance" | "inactive"
+  slug: string
 }
-
-const mockDepartments: Department[] = [
-  {
-    id: "1",
-    name: "Engineering",
-    totalDocs: 456,
-    pendingDocs: 12,
-    activeUsers: 15,
-    completionRate: 94,
-    lastUpdated: "2 hours ago",
-    status: "active"
-  },
-  {
-    id: "2", 
-    name: "HR",
-    totalDocs: 234,
-    pendingDocs: 8,
-    activeUsers: 8,
-    completionRate: 98,
-    lastUpdated: "1 hour ago",
-    status: "active"
-  },
-  {
-    id: "3",
-    name: "Legal",
-    totalDocs: 189,
-    pendingDocs: 15,
-    activeUsers: 6,
-    completionRate: 87,
-    lastUpdated: "3 hours ago",
-    status: "active"
-  },
-  {
-    id: "4",
-    name: "Finance",
-    totalDocs: 678,
-    pendingDocs: 23,
-    activeUsers: 12,
-    completionRate: 91,
-    lastUpdated: "30 mins ago",
-    status: "active"
-  },
-  {
-    id: "5",
-    name: "Safety",
-    totalDocs: 145,
-    pendingDocs: 3,
-    activeUsers: 9,
-    completionRate: 96,
-    lastUpdated: "45 mins ago",
-    status: "active"
-  },
-  {
-    id: "6",
-    name: "Operations",
-    totalDocs: 567,
-    pendingDocs: 18,
-    activeUsers: 22,
-    completionRate: 89,
-    lastUpdated: "1 hour ago",
-    status: "active"
-  }
-]
 
 interface DepartmentGridProps {
   onDepartmentClick: (department: Department) => void
@@ -122,9 +82,12 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
   }
 
   const handleSeeAllUsers = (department: Department) => {
-    // Navigate to users page for this department
     const departmentSlug = department.name.toLowerCase().replace(/\s+/g, '-')
-    navigate(`/users/${departmentSlug}`)
+    const deptid=department.id;
+    console.log(deptid);
+    navigate(`/users/${departmentSlug}`,{
+      state:{deptid}
+    })
   }
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -234,10 +197,9 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
                   size="sm" 
                   onClick={(e) => {
                     e.stopPropagation();
-                    const departmentPath = `/${department.name.toLowerCase()}`;
+                    const departmentPath = `/${department.slug}`;
                     window.open(departmentPath, '_blank');
                     //new page
-
                   }}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />

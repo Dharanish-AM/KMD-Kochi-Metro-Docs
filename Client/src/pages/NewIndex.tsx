@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { OverviewStats } from "@/components/dashboard/overview-stats"
 import { DepartmentGrid } from "@/components/dashboard/department-grid"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
+import { departmentAPI, transformDepartmentData } from "@/lib/api"
 
 interface Department {
   id: string
@@ -16,118 +17,112 @@ interface Department {
   completionRate: number
   lastUpdated: string
   status: "active" | "maintenance" | "inactive"
+  slug: string
 }
 
-const initialDepartments: Department[] = [
-  {
-    id: "1",
-    name: "Engineering",
-    category: "technical",
-    totalDocs: 456,
-    pendingDocs: 12,
-    activeUsers: 15,
-    completionRate: 94,
-    lastUpdated: "2 hours ago",
-    status: "active"
-  },
-  {
-    id: "2", 
-    name: "HR",
-    category: "administrative",
-    totalDocs: 234,
-    pendingDocs: 8,
-    activeUsers: 8,
-    completionRate: 98,
-    lastUpdated: "1 hour ago",
-    status: "active"
-  },
-  {
-    id: "3",
-    name: "Legal",
-    category: "administrative",
-    totalDocs: 189,
-    pendingDocs: 5,
-    activeUsers: 6,
-    completionRate: 96,
-    lastUpdated: "3 hours ago",
-    status: "active"
-  },
-  {
-    id: "4",
-    name: "Finance",
-    category: "administrative", 
-    totalDocs: 567,
-    pendingDocs: 23,
-    activeUsers: 12,
-    completionRate: 91,
-    lastUpdated: "4 hours ago",
-    status: "active"
-  },
-  {
-    id: "5",
-    name: "Operations",
-    category: "operational",
-    totalDocs: 789,
-    pendingDocs: 34,
-    activeUsers: 20,
-    completionRate: 89,
-    lastUpdated: "1 hour ago",
-    status: "active"
-  },
-  {
-    id: "6",
-    name: "Safety",
-    category: "operational",
-    totalDocs: 345,
-    pendingDocs: 15,
-    activeUsers: 10,
-    completionRate: 93,
-    lastUpdated: "2 hours ago",
-    status: "active"
-  },
-  {
-    id: "7",
-    name: "Maintenance",
-    category: "operational",
-    totalDocs: 445,
-    pendingDocs: 18,
-    activeUsers: 14,
-    completionRate: 88,
-    lastUpdated: "5 hours ago",
-    status: "maintenance"
-  },
-  {
-    id: "8",
-    name: "Customer Service",
-    category: "operational",
-    totalDocs: 256,
-    pendingDocs: 9,
-    activeUsers: 16,
-    completionRate: 97,
-    lastUpdated: "30 minutes ago",
-    status: "active"
-  }
-]
-
 const Index = () => {
-  const [departments, setDepartments] = useState<Department[]>(initialDepartments)
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleCreateDepartment = (newDepartment: Omit<Department, "id" | "totalDocs" | "pendingDocs" | "activeUsers" | "completionRate" | "lastUpdated" | "status">) => {
-    const department: Department = {
-      ...newDepartment,
-      id: (departments.length + 1).toString(),
-      totalDocs: 0,
-      pendingDocs: 0,
-      activeUsers: 1,
-      completionRate: 0,
-      lastUpdated: "Just now",
-      status: "active"
+  // Fetch departments from API
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const apiDepartments = await departmentAPI.getDepartments()
+        const transformedDepartments = apiDepartments.map(transformDepartmentData)
+        
+        setDepartments(transformedDepartments)
+      } catch (err) {
+        console.error('Failed to fetch departments:', err)
+        setError('Failed to load departments. Please try again later.')
+        
+        // Fallback to empty array
+        setDepartments([])
+      } finally {
+        setLoading(false)
+      }
     }
-    setDepartments(prev => [...prev, department])
+
+    fetchDepartments()
+  }, [])
+
+  const handleCreateDepartment = async (newDepartment: Omit<Department, "id" | "totalDocs" | "pendingDocs" | "activeUsers" | "completionRate" | "lastUpdated" | "status">) => {
+    try {
+      const response = await departmentAPI.createDepartment({
+        name: newDepartment.name,
+        description: newDepartment.description
+      })
+      
+      // Transform the new department and add it to the list
+      const transformedDepartment = transformDepartmentData(response.department)
+      setDepartments(prev => [...prev, transformedDepartment])
+    } catch (err) {
+      console.error('Failed to create department:', err)
+    }
   }
 
   const handleDepartmentClick = (department: Department) => {
     console.log("Department clicked:", department)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header 
+            title="Kochi Metro Documentation" 
+            description="Centralized document management system"
+            showAddButton={true}
+            onCreateDepartment={handleCreateDepartment}
+          />
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background">
+            <div className="p-6 flex items-center justify-center min-h-[400px]">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                <p className="text-gray-600">Loading departments...</p>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header 
+            title="Kochi Metro Documentation" 
+            description="Centralized document management system"
+            showAddButton={true}
+            onCreateDepartment={handleCreateDepartment}
+          />
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background">
+            <div className="p-6 flex items-center justify-center min-h-[400px]">
+              <div className="flex flex-col items-center gap-4">
+                <div className="text-red-500 text-center">
+                  <h3 className="text-lg font-semibold mb-2">Error Loading Departments</h3>
+                  <p className="text-sm">{error}</p>
+                  <button 
+                    onClick={() => window.location.reload()} 
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   return (

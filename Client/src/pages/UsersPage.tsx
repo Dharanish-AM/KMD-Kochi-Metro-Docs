@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -66,9 +66,11 @@ import {
   BarChart3,
   UserMinus,
   X,
-  Users
+  Users,
+  Loader2
 } from "lucide-react"
-
+import axiosInstance from "@/Utils/Auth/axiosInstance"
+import { useToast } from "@/hooks/use-toast"
 interface User {
   id: string
   name: string
@@ -291,6 +293,7 @@ const departmentNames: Record<string, string> = {
 export function UsersPage() {
   const { departmentId } = useParams<{ departmentId: string }>()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false)
@@ -298,14 +301,202 @@ export function UsersPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [roleFilter, setRoleFilter] = useState("all")
   const [showOnlineOnly, setShowOnlineOnly] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false)
+  const [isDeletingUser, setIsDeletingUser] = useState(false)
+  const location=useLocation();
+  const deptid=location.state?.deptid;
+  
+  // Form state for add user modal
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+    role: "",
+    status: "active"
+  })
 
+  // Form state for edit user modal
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    role: "",
+    status: "active"
+  })
+  
+  // Available departments from backend
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState("")
+
+  // Available roles
+  const roles = ["Employee", "Viewer"]
+
+  // Fetch departments on component mount
   useEffect(() => {
-    if (departmentId) {
-      const deptUsers = mockUsers[departmentId] || []
-      setUsers(deptUsers)
-      setDepartmentName(departmentNames[departmentId] || departmentId)
+    const fetchDepartments = async () => {
+      try {
+        // If we have a departmentId, we'll use it later for setting the user's department
+        if (departmentId) {
+          setSelectedDepartmentId(departmentId)
+        }
+        // You might want to fetch all departments here for the dropdown
+        // For now, we'll use the departmentId from the URL
+      } catch (error) {
+        console.error("Error fetching departments:", error)
+      }
+    }
+    
+    fetchDepartments()
+  }, [departmentId])
+
+  // Fetch users from backend when departmentId changes
+  useEffect(() => {
+    const fetchDepartmentUsers = async () => {
+      if (!departmentId) return
+      
+      setIsLoadingUsers(true)
+      try {
+        const response = await axiosInstance.get(`/api/departments/${deptid}`)
+        
+        if (response.data) {
+          const department = response.data
+          setDepartmentName(department.name)
+          
+          // Transform backend employees to frontend User interface
+          const transformedUsers: User[] = department.employees.map((employee: any) => ({
+            id: employee._id,
+            name: employee.name,
+            email: employee.email,
+            phone: employee.phone || "",
+            role: employee.role,
+            status: "active", // Default status, you can enhance this based on backend data
+            lastLogin: "Never", // This would need to be tracked in backend
+            permissions: ["read"], // Default permissions, can be enhanced
+            joinedDate: new Date(employee.joinedAt).toISOString().split('T')[0],
+            isOnline: false, // This would need real-time tracking
+            documentsUploaded: 0, // This would need to be calculated from documents
+            performanceScore: 85, // This would need to be calculated
+            location: employee.location || ""
+          }))
+          
+          setUsers(transformedUsers)
+          setLastRefreshed(new Date())
+          
+          toast({
+            title: "Success",
+            description: `Loaded ${transformedUsers.length} users from ${department.name}`,
+          })
+        }
+      } catch (error: any) {
+        console.error("Error fetching department users:", error)
+        toast({
+          title: "Error",
+          description: error.response?.data?.message || "Failed to fetch users",
+          variant: "destructive",
+        })
+        
+        // Fallback to empty array if error
+        setUsers([])
+        setDepartmentName(departmentId)
+      } finally {
+        setIsLoadingUsers(false)
+      }
+    }
+    
+    fetchDepartmentUsers()
+  }, [departmentId, toast])
+
+  // Add keyboard shortcut for refresh
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if ((event.ctrlKey && event.key === 'r') || event.key === 'F5') {
+        event.preventDefault()
+        handleManualRefresh()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress)
     }
   }, [departmentId])
+
+  // Auto-refresh functionality
+  useEffect(() => {
+    if (!autoRefresh || !departmentId) return
+
+    const interval = setInterval(() => {
+      refetchUsers(true)
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [autoRefresh, departmentId])
+
+  // Function to refetch users (useful after adding/updating users)
+  const refetchUsers = async (isAutoRefresh = false) => {
+    if (!departmentId) return
+    
+    setIsLoadingUsers(true)
+    
+    try {
+      const response = await axiosInstance.get(`/api/departments/${deptid}`)
+      
+      if (response.data) {
+        const department = response.data
+        setDepartmentName(department.name)
+        
+        // Transform backend employees to frontend User interface
+        const transformedUsers: User[] = department.employees.map((employee: any) => ({
+          id: employee._id,
+          name: employee.name,
+          email: employee.email,
+          phone: employee.phone || "",
+          role: employee.role,
+          status: "active",
+          lastLogin: "Never",
+          permissions: ["read"],
+          joinedDate: new Date(employee.joinedAt).toISOString().split('T')[0],
+          isOnline: false,
+          documentsUploaded: 0,
+          performanceScore: 85,
+          location: employee.location || ""
+        }))
+        
+        setUsers(transformedUsers)
+        setLastRefreshed(new Date())
+        
+        if (!isAutoRefresh) {
+          toast({
+            title: "Success",
+            description: `Refreshed ${transformedUsers.length} users from ${department.name}`,
+          })
+        }
+      }
+    } catch (error: any) {
+      console.error("Error refetching users:", error)
+      if (!isAutoRefresh) {
+        toast({
+          title: "Error",
+          description: error.response?.data?.message || "Failed to refresh users",
+          variant: "destructive",
+        })
+      }
+    } finally {
+      setIsLoadingUsers(false)
+    }
+  }
+
+  const handleManualRefresh = () => {
+    refetchUsers(false)
+  }
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -319,7 +510,7 @@ export function UsersPage() {
     return matchesSearch && matchesStatus && matchesRole && matchesOnline
   })
 
-  const roles = [...new Set(users.map(user => user.role))]
+  const userRoles = [...new Set(users.map(user => user.role))]
   const activeUsers = users.filter(u => u.status === 'active').length
   const onlineUsers = users.filter(u => u.isOnline).length
   const totalDocuments = users.reduce((sum, user) => sum + (user.documentsUploaded || 0), 0)
@@ -391,30 +582,240 @@ export function UsersPage() {
     }
   }
 
-  const handleUpdateUser = (userId: string, updates: Partial<User>) => {
-    setUsers(prev => prev.map(user => 
-      user.id === userId ? { ...user, ...updates } : user
-    ))
-  }
-
-  const handleDeleteUser = (userId: string) => {
-    setUsers(prev => prev.filter(user => user.id !== userId))
-  }
-
-  const handleAddUser = (newUserData: Partial<User>) => {
-    const user: User = {
-      id: `u${Date.now()}`,
-      name: newUserData.name!,
-      email: newUserData.email!,
-      phone: newUserData.phone || "",
-      role: newUserData.role!,
-      status: newUserData.status as "active" | "inactive" | "pending",
-      lastLogin: "Never",
-      permissions: newUserData.permissions || ["read"],
-      joinedDate: new Date().toISOString().split('T')[0]
+  const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
+    setIsUpdatingUser(true)
+    
+    try {
+      const response = await axiosInstance.put(`/api/employee/${userId}`, {
+        name: updates.name,
+        email: updates.email,
+        phone: updates.phone,
+        role: updates.role,
+        departmentId: deptid
+      })
+      
+      if (response.data.user) {
+        // Transform backend user to frontend User interface
+        const updatedUser: User = {
+          id: response.data.user._id,
+          name: response.data.user.name,
+          email: response.data.user.email,
+          phone: response.data.user.phone || "",
+          role: response.data.user.role,
+          status: updates.status || "active",
+          lastLogin: "Never",
+          permissions: ["read"],
+          joinedDate: new Date(response.data.user.joinedAt).toISOString().split('T')[0],
+          isOnline: false,
+          documentsUploaded: 0,
+          performanceScore: 85,
+          location: updates.location || ""
+        }
+        
+        // Update the user in the local state
+        setUsers(prev => prev.map(user => 
+          user.id === userId ? updatedUser : user
+        ))
+        
+        toast({
+          title: "Success",
+          description: "User updated successfully",
+        })
+      }
+      
+    } catch (error: any) {
+      toast({
+        title: "Error", 
+        description: error.response?.data?.message || "Failed to update user",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdatingUser(false)
     }
-    setUsers(prev => [...prev, user])
+  }
+
+  const handleDeleteUser = async (userId: string) => {
+    setIsDeletingUser(true)
+    
+    try {
+      await axiosInstance.delete(`/api/employee/${userId}`)
+      
+      // Remove user from local state
+      setUsers(prev => prev.filter(user => user.id !== userId))
+      
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      })
+      
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to delete user", 
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingUser(false)
+      setIsDeleteConfirmOpen(false)
+      setSelectedUser(null)
+    }
+  }
+
+  const handleAddUser = async () => {
+    if (!formData.name || !formData.email || !formData.password || !formData.role) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!selectedDepartmentId && formData.role !== "Admin") {
+      toast({
+        title: "Validation Error", 
+        description: "Department is required for non-admin users",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsCreatingUser(true)
+    
+    try {
+      const userData = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        role: formData.role,
+        ...(selectedDepartmentId && { departmentId: deptid })
+      }
+
+      const response = await axiosInstance.post("/api/employee/create-user", userData)
+      
+      if (response.data.user) {
+        toast({
+          title: "Success",
+          description: "User created successfully",
+        })
+        
+        // Refetch users to get the updated list from backend
+        await refetchUsers(false)
+        
+        closeAddUserModal()
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to create user",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCreatingUser(false)
+    }
+  }
+
+  const handleFormChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const openAddUserModal = () => {
+    // Reset form when opening modal
+    setFormData({
+      name: "",
+      email: "",
+      phone: "",
+      password: "",
+      role: "",
+      status: "active"
+    })
+    setIsAddUserModalOpen(true)
+  }
+
+  const closeAddUserModal = () => {
+    // Reset form when closing modal
+    setFormData({
+      name: "",
+      email: "",
+      phone: "",
+      password: "",
+      role: "",
+      status: "active"
+    })
     setIsAddUserModalOpen(false)
+  }
+
+  const openEditUserModal = (user: User) => {
+    setSelectedUser(user)
+    setEditFormData({
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      status: user.status
+    })
+    setIsEditUserModalOpen(true)
+  }
+
+  const closeEditUserModal = () => {
+    setEditFormData({
+      name: "",
+      email: "",
+      phone: "",
+      role: "",
+      status: "active"
+    })
+    setSelectedUser(null)
+    setIsEditUserModalOpen(false)
+  }
+
+  const openDeleteConfirm = (user: User) => {
+    setSelectedUser(user)
+    setIsDeleteConfirmOpen(true)
+  }
+
+  const closeDeleteConfirm = () => {
+    setSelectedUser(null)
+    setIsDeleteConfirmOpen(false)
+  }
+
+  const handleEditFormChange = (field: string, value: string) => {
+    setEditFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleSaveUserEdit = async () => {
+    if (!selectedUser) return
+    
+    if (!editFormData.name || !editFormData.email || !editFormData.role) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
+    }
+
+    await handleUpdateUser(selectedUser.id, {
+      name: editFormData.name,
+      email: editFormData.email,
+      phone: editFormData.phone,
+      role: editFormData.role,
+      status: editFormData.status as "active" | "inactive" | "pending"
+    })
+    
+    closeEditUserModal()
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!selectedUser) return
+    await handleDeleteUser(selectedUser.id)
   }
 
   const togglePermission = (userId: string, permission: string) => {
@@ -432,50 +833,177 @@ export function UsersPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Stunning Enhanced Header */}
-      <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
-            <div className="flex items-center space-x-6">
+      {/* Modern Enhanced Header */}
+      <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-b border-gray-200/80 dark:border-gray-800/80 sticky top-0 z-50 shadow-lg animate-in slide-in-from-top duration-500">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          {/* Top Bar with Navigation and Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 border-b border-gray-100 dark:border-gray-800/50 space-y-3 sm:space-y-0">
+            <div className="flex items-center space-x-4">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate(-1)}
-                className="flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg px-3 py-2 transition-all duration-200"
+                className="flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg px-3 py-2 transition-all duration-200 text-gray-600 dark:text-gray-300"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span>Back to Dashboard</span>
+                <span className="font-medium">Back</span>
               </Button>
               
-              <div className="flex items-center space-x-4">
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${theme.primary} flex items-center justify-center shadow-lg ring-4 ring-white/20 dark:ring-gray-800/20`}>
-                  <UsersIcon className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text">
-                    {departmentName} Department
-                  </h1>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    Advanced User Management System
-                  </p>
-                </div>
+              {/* Breadcrumb */}
+              <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                <Building2 className="h-4 w-4" />
+                <span>Departments</span>
+                <span>/</span>
+                <span className="text-gray-900 dark:text-white font-medium">{departmentName}</span>
               </div>
             </div>
 
+            {/* Quick Actions */}
             <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
+                <Switch
+                  id="auto-refresh"
+                  checked={autoRefresh}
+                  onCheckedChange={setAutoRefresh}
+                />
+                <Label 
+                  htmlFor="auto-refresh" 
+                  className={`text-xs font-medium cursor-pointer ${autoRefresh ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}
+                >
+                  <span className="hidden sm:inline">Auto-refresh</span>
+                  <span className="sm:hidden">Auto</span>
+                  {autoRefresh && <span className="hidden sm:inline"> (30s)</span>}
+                </Label>
+              </div>
+              
               <Button 
-                onClick={() => setIsAddUserModalOpen(true)}
-                className={`bg-gradient-to-r ${theme.primary} hover:opacity-90 shadow-lg ring-2 ring-white/20 dark:ring-gray-800/20 transition-all duration-200 hover:scale-105`}
+                variant="outline"
+                size="sm"
+                onClick={handleManualRefresh}
+                disabled={isLoadingUsers}
+                className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 border-gray-200 dark:border-gray-700"
+                title={lastRefreshed ? `Last refreshed: ${lastRefreshed.toLocaleTimeString()}` : "Refresh user data"}
               >
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add User
+                {isLoadingUsers ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Activity className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline ml-1.5">Refresh</span>
               </Button>
-              <Button variant="outline" size="sm" className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                <Download className="h-4 w-4 mr-2" />
-                Export
+
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="hover:bg-gray-50 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline ml-1.5">Export</span>
               </Button>
             </div>
+          </div>
+
+          {/* Main Header Content */}
+          <div className="py-6">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+              {/* Department Info */}
+              <div className="flex items-center space-x-4 lg:space-x-6">
+                <div className="relative">
+                  <div className={`w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-gradient-to-br ${theme.primary} flex items-center justify-center shadow-xl ring-4 ring-white/30 dark:ring-gray-800/30`}>
+                    <UsersIcon className="h-7 w-7 lg:h-8 lg:w-8 text-white" />
+                  </div>
+                  {isLoadingUsers && (
+                    <div className="absolute -top-1 -right-1 w-5 h-5 lg:w-6 lg:h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                      <Loader2 className="h-2.5 w-2.5 lg:h-3 lg:w-3 text-white animate-spin" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-1">
+                  <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">
+                    {departmentName || 'Department'}
+                  </h1>
+                  <p className="text-sm lg:text-base text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    User Management Dashboard
+                    {lastRefreshed && (
+                      <>
+                        <span className="hidden sm:inline text-gray-300 dark:text-gray-600">•</span>
+                        <span className="hidden sm:inline text-sm">
+                          Updated {lastRefreshed.toLocaleTimeString()}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Primary Actions */}
+              <div className="flex items-center space-x-4">
+                <Button 
+                  onClick={openAddUserModal}
+                  className={`bg-gradient-to-r ${theme.primary} hover:opacity-90 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 px-4 lg:px-6 py-2 lg:py-3`}
+                  size="lg"
+                >
+                  <UserPlus className="h-4 w-4 lg:h-5 lg:w-5 mr-2" />
+                  <span className="hidden sm:inline">Add New User</span>
+                  <span className="sm:hidden">Add User</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Quick Stats Bar */}
+            {/* <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800/50">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                <div className={`flex items-center space-x-3 bg-gray-50/50 dark:bg-gray-800/30 rounded-xl px-3 lg:px-4 py-3 transition-all duration-200 ${isLoadingUsers ? 'animate-pulse' : ''}`}>
+                  <div className="w-8 h-8 lg:w-10 lg:h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                    <Users className="h-4 w-4 lg:h-5 lg:w-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm lg:text-base font-medium text-gray-900 dark:text-white">
+                      {isLoadingUsers ? '...' : filteredUsers.length}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Total Users</p>
+                  </div>
+                </div>
+
+                <div className={`flex items-center space-x-3 bg-gray-50/50 dark:bg-gray-800/30 rounded-xl px-3 lg:px-4 py-3 transition-all duration-200 ${isLoadingUsers ? 'animate-pulse' : ''}`}>
+                  <div className="w-8 h-8 lg:w-10 lg:h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="h-4 w-4 lg:h-5 lg:w-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm lg:text-base font-medium text-gray-900 dark:text-white">
+                      {isLoadingUsers ? '...' : activeUsers}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Active</p>
+                  </div>
+                </div>
+
+                <div className={`flex items-center space-x-3 bg-gray-50/50 dark:bg-gray-800/30 rounded-xl px-3 lg:px-4 py-3 transition-all duration-200 ${isLoadingUsers ? 'animate-pulse' : ''}`}>
+                  <div className="w-8 h-8 lg:w-10 lg:h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                    <Activity className="h-4 w-4 lg:h-5 lg:w-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm lg:text-base font-medium text-gray-900 dark:text-white">
+                      {isLoadingUsers ? '...' : onlineUsers}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Online</p>
+                  </div>
+                </div>
+
+                <div className={`flex items-center space-x-3 bg-gray-50/50 dark:bg-gray-800/30 rounded-xl px-3 lg:px-4 py-3 transition-all duration-200 ${isLoadingUsers ? 'animate-pulse' : ''}`}>
+                  <div className="w-8 h-8 lg:w-10 lg:h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                    <FileText className="h-4 w-4 lg:h-5 lg:w-5 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm lg:text-base font-medium text-gray-900 dark:text-white">
+                      {isLoadingUsers ? '...' : totalDocuments}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Documents</p>
+                  </div>
+                </div>
+              </div>
+            </div> */}
           </div>
         </div>
       </div>
@@ -487,7 +1015,11 @@ export function UsersPage() {
             <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-transparent"></div>
             <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -mr-10 -mt-10"></div>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-              <CardTitle className="text-sm font-medium text-blue-100">Total Users</CardTitle>
+              <CardTitle className="text-sm font-medium text-blue-100 flex items-center gap-2">
+                Total Users
+                {isLoadingUsers && <Loader2 className="h-3 w-3 animate-spin" />}
+                {autoRefresh && !isLoadingUsers && <Activity className="h-3 w-3 text-green-300" />}
+              </CardTitle>
               <UsersIcon className="h-5 w-5 text-blue-200" />
             </CardHeader>
             <CardContent className="relative z-10">
@@ -598,7 +1130,7 @@ export function UsersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Roles</SelectItem>
-                    {roles.map(role => (
+                    {userRoles.map(role => (
                       <SelectItem key={role} value={role}>{role}</SelectItem>
                     ))}
                   </SelectContent>
@@ -678,7 +1210,19 @@ export function UsersPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {filteredUsers.length === 0 ? (
+            {isLoadingUsers ? (
+              <div className="text-center py-16">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-full flex items-center justify-center">
+                  <Loader2 className="h-10 w-10 text-gray-400 animate-spin" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
+                  Loading Users
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-sm mx-auto">
+                  Fetching users from {departmentName || 'department'}...
+                </p>
+              </div>
+            ) : filteredUsers.length === 0 ? (
               <div className="text-center py-16">
                 <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-full flex items-center justify-center">
                   <Users className="h-10 w-10 text-gray-400" />
@@ -690,7 +1234,7 @@ export function UsersPage() {
                   {searchTerm ? "Try adjusting your search criteria or filters" : "No users in this department yet"}
                 </p>
                 <Button 
-                  onClick={() => setIsAddUserModalOpen(true)}
+                  onClick={openAddUserModal}
                   className={`bg-gradient-to-r ${theme.primary} hover:opacity-90 shadow-lg`}
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
@@ -715,7 +1259,7 @@ export function UsersPage() {
                     {filteredUsers.map((user, index) => (
                       <tr 
                         key={user.id} 
-                        className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gradient-to-r hover:from-gray-50/50 hover:to-transparent dark:hover:from-gray-800/50 dark:hover:to-transparent transition-all duration-200 ${
+                        className={`group border-b border-gray-100 dark:border-gray-800 hover:bg-gradient-to-r hover:from-gray-50/50 hover:to-transparent dark:hover:from-gray-800/50 dark:hover:to-transparent transition-all duration-200 ${
                           index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/30 dark:bg-gray-800/30'
                         }`}
                       >
@@ -765,17 +1309,33 @@ export function UsersPage() {
 
                         {/* Enhanced Status */}
                         <td className="p-6">
-                          <div className="flex items-center space-x-2">
-                            <div 
-                              className={`w-3 h-3 rounded-full shadow-sm ${
-                                user.status === 'active' ? 'bg-green-500 animate-pulse' :
-                                user.status === 'inactive' ? 'bg-red-500' :
-                                'bg-yellow-500 animate-pulse'
-                              }`} 
-                            />
-                            <span className="text-sm font-medium capitalize text-gray-700 dark:text-gray-300">
-                              {user.status}
-                            </span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <div 
+                                className={`w-3 h-3 rounded-full shadow-sm ${
+                                  user.status === 'active' ? 'bg-green-500 animate-pulse' :
+                                  user.status === 'inactive' ? 'bg-red-500' :
+                                  'bg-yellow-500 animate-pulse'
+                                }`} 
+                              />
+                              <span className="text-sm font-medium capitalize text-gray-700 dark:text-gray-300">
+                                {user.status}
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleUpdateUser(user.id, { 
+                                status: user.status === 'active' ? 'inactive' : 'active' 
+                              })}
+                              className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                              title={`Set ${user.status === 'active' ? 'inactive' : 'active'}`}
+                            >
+                              {user.status === 'active' ? 
+                                <XCircle className="h-4 w-4 text-red-500" /> : 
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              }
+                            </Button>
                           </div>
                         </td>
 
@@ -833,18 +1393,45 @@ export function UsersPage() {
 
                         {/* Enhanced Actions */}
                         <td className="p-6 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-10 w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-                                <MoreVertical className="h-4 w-4" />
+                          <div className="flex items-center justify-end space-x-2">
+                            {/* Quick Action Buttons - Show on hover */}
+                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditUserModal(user)}
+                                className="h-8 w-8 p-0 hover:bg-green-100 dark:hover:bg-green-900/20 rounded-lg"
+                                title="Edit user"
+                              >
+                                <Edit3 className="h-4 w-4 text-green-600 dark:text-green-400" />
                               </Button>
-                            </DropdownMenuTrigger>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openDeleteConfirm(user)}
+                                className="h-8 w-8 p-0 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg"
+                                title="Delete user"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                              </Button>
+                            </div>
+                            
+                            {/* Dropdown Menu */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-10 w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
                               <DropdownMenuItem className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
                                 <Eye className="h-4 w-4 mr-2 text-blue-600" />
                                 View Profile
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="hover:bg-green-50 dark:hover:bg-green-900/20">
+                              <DropdownMenuItem 
+                                className="hover:bg-green-50 dark:hover:bg-green-900/20"
+                                onClick={() => openEditUserModal(user)}
+                              >
                                 <Edit className="h-4 w-4 mr-2 text-green-600" />
                                 Edit User
                               </DropdownMenuItem>
@@ -862,12 +1449,16 @@ export function UsersPage() {
                                 View Analytics
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
+                              <DropdownMenuItem 
+                                className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                onClick={() => openDeleteConfirm(user)}
+                              >
                                 <UserMinus className="h-4 w-4 mr-2" />
                                 Remove User
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -879,7 +1470,7 @@ export function UsersPage() {
         </Card>
       </div>
 
-      {/* Stunning Enhanced Add User Modal */}
+   
       {isAddUserModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
@@ -901,7 +1492,7 @@ export function UsersPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setIsAddUserModalOpen(false)}
+                  onClick={closeAddUserModal}
                   className="h-10 w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
                 >
                   <X className="h-5 w-5" />
@@ -910,25 +1501,51 @@ export function UsersPage() {
             </div>
             <div className="p-6 space-y-5">
               <div>
-                <Label htmlFor="name" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Full Name</Label>
+                <Label htmlFor="name" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Full Name *</Label>
                 <Input 
                   id="name" 
+                  value={formData.name}
+                  onChange={(e) => handleFormChange("name", e.target.value)}
                   placeholder="Enter full name" 
                   className="mt-2 h-12 border-2 focus:border-primary/50 transition-all duration-200"
                 />
               </div>
               <div>
-                <Label htmlFor="email" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Email Address</Label>
+                <Label htmlFor="email" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Email Address *</Label>
                 <Input 
                   id="email" 
                   type="email" 
+                  value={formData.email}
+                  onChange={(e) => handleFormChange("email", e.target.value)}
                   placeholder="Enter email address" 
                   className="mt-2 h-12 border-2 focus:border-primary/50 transition-all duration-200"
                 />
               </div>
               <div>
-                <Label htmlFor="role" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Role</Label>
-                <Select>
+                <Label htmlFor="phone" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Phone Number</Label>
+                <Input 
+                  id="phone" 
+                  type="tel" 
+                  value={formData.phone}
+                  onChange={(e) => handleFormChange("phone", e.target.value)}
+                  placeholder="Enter phone number" 
+                  className="mt-2 h-12 border-2 focus:border-primary/50 transition-all duration-200"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Password *</Label>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  value={formData.password}
+                  onChange={(e) => handleFormChange("password", e.target.value)}
+                  placeholder="Enter password" 
+                  className="mt-2 h-12 border-2 focus:border-primary/50 transition-all duration-200"
+                />
+              </div>
+              <div>
+                <Label htmlFor="role" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Role *</Label>
+                <Select value={formData.role} onValueChange={(value) => handleFormChange("role", value)}>
                   <SelectTrigger className="mt-2 h-12 border-2 focus:border-primary/50">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
@@ -940,16 +1557,8 @@ export function UsersPage() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="location" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Location (Optional)</Label>
-                <Input 
-                  id="location" 
-                  placeholder="Enter location" 
-                  className="mt-2 h-12 border-2 focus:border-primary/50 transition-all duration-200"
-                />
-              </div>
-              <div>
                 <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Initial Status</Label>
-                <Select defaultValue="active">
+                <Select value={formData.status} onValueChange={(value) => handleFormChange("status", value)}>
                   <SelectTrigger className="mt-2 h-12 border-2 focus:border-primary/50">
                     <SelectValue />
                   </SelectTrigger>
@@ -964,16 +1573,198 @@ export function UsersPage() {
               <Button
                 variant="outline"
                 className="flex-1 h-12 hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => setIsAddUserModalOpen(false)}
+                onClick={closeAddUserModal}
               >
                 Cancel
               </Button>
               <Button
                 className={`flex-1 h-12 bg-gradient-to-r ${theme.primary} hover:opacity-90 shadow-lg transition-all duration-200 hover:scale-105`}
-                onClick={() => setIsAddUserModalOpen(false)}
+                onClick={handleAddUser}
+                disabled={isCreatingUser}
               >
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add User
+                {isCreatingUser ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <UserPlus className="h-4 w-4 mr-2" />
+                )}
+                {isCreatingUser ? "Creating..." : "Add User"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {isEditUserModalOpen && selectedUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg ring-4 ring-white/20 dark:ring-gray-800/20">
+                    <Edit className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                      Edit User
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {selectedUser.name}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={closeEditUserModal}
+                  className="h-10 w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+            <div className="p-6 space-y-5">
+              <div>
+                <Label htmlFor="edit-name" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Full Name *</Label>
+                <Input 
+                  id="edit-name" 
+                  value={editFormData.name}
+                  onChange={(e) => handleEditFormChange("name", e.target.value)}
+                  placeholder="Enter full name" 
+                  className="mt-2 h-12 border-2 focus:border-primary/50 transition-all duration-200"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-email" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Email Address *</Label>
+                <Input 
+                  id="edit-email" 
+                  type="email" 
+                  value={editFormData.email}
+                  onChange={(e) => handleEditFormChange("email", e.target.value)}
+                  placeholder="Enter email address" 
+                  className="mt-2 h-12 border-2 focus:border-primary/50 transition-all duration-200"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-phone" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Phone Number</Label>
+                <Input 
+                  id="edit-phone" 
+                  type="tel" 
+                  value={editFormData.phone}
+                  onChange={(e) => handleEditFormChange("phone", e.target.value)}
+                  placeholder="Enter phone number" 
+                  className="mt-2 h-12 border-2 focus:border-primary/50 transition-all duration-200"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-role" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Role *</Label>
+                <Select value={editFormData.role} onValueChange={(value) => handleEditFormChange("role", value)}>
+                  <SelectTrigger className="mt-2 h-12 border-2 focus:border-primary/50">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map(role => (
+                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Status</Label>
+                <Select value={editFormData.status} onValueChange={(value) => handleEditFormChange("status", value)}>
+                  <SelectTrigger className="mt-2 h-12 border-2 focus:border-primary/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3 bg-gray-50 dark:bg-gray-800/50">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={closeEditUserModal}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 h-12 bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 shadow-lg transition-all duration-200 hover:scale-105"
+                onClick={handleSaveUserEdit}
+                disabled={isUpdatingUser}
+              >
+                {isUpdatingUser ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Edit className="h-4 w-4 mr-2" />
+                )}
+                {isUpdatingUser ? "Updating..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {isDeleteConfirmOpen && selectedUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-red-50 to-white dark:from-red-900/20 dark:to-gray-900">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg ring-4 ring-red-100/50 dark:ring-red-900/20">
+                  <AlertCircle className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Delete User
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    This action cannot be undone
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-700 dark:text-gray-300 mb-4">
+                Are you sure you want to delete <strong className="font-semibold text-gray-900 dark:text-white">{selectedUser.name}</strong>? 
+                This will permanently remove their account and all associated data.
+              </p>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-medium text-red-800 dark:text-red-300">
+                      Warning
+                    </h4>
+                    <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+                      This action is permanent and cannot be reversed. The user will lose access to all their data and permissions.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3 bg-gray-50 dark:bg-gray-800/50">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={closeDeleteConfirm}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 h-12 bg-gradient-to-r from-red-500 to-red-600 hover:opacity-90 shadow-lg transition-all duration-200 hover:scale-105 text-white"
+                onClick={handleConfirmDelete}
+                disabled={isDeletingUser}
+              >
+                {isDeletingUser ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                {isDeletingUser ? "Deleting..." : "Delete User"}
               </Button>
             </div>
           </div>

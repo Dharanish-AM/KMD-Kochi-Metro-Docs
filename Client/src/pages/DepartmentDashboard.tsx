@@ -44,6 +44,143 @@ interface DepartmentInfo {
 
 // Department theme configuration to match sidebar colors
 const departmentThemes = {
+  // KMRL Departments with new themes
+  "Operations & Maintenance": {
+    primary: "from-cyan-600 via-sky-700 to-blue-800",
+    secondary: "from-cyan-50 to-sky-50",
+    accent: "bg-cyan-500",
+    text: "text-cyan-600",
+    lightBg: "from-cyan-50 to-sky-100",
+    darkBg: "from-cyan-900/20 to-sky-800/20",
+    border: "border-cyan-200 dark:border-cyan-700"
+  },
+  "Engineering & Infrastructure": {
+    primary: "from-blue-600 via-blue-700 to-indigo-800",
+    secondary: "from-blue-50 to-indigo-50",
+    accent: "bg-blue-500",
+    text: "text-blue-600",
+    lightBg: "from-blue-50 to-blue-100",
+    darkBg: "from-blue-900/20 to-blue-800/20",
+    border: "border-blue-200 dark:border-blue-700"
+  },
+  "Electrical & Mechanical": {
+    primary: "from-orange-600 via-amber-700 to-yellow-800",
+    secondary: "from-orange-50 to-amber-50",
+    accent: "bg-orange-500",
+    text: "text-orange-600",
+    lightBg: "from-orange-50 to-amber-100",
+    darkBg: "from-orange-900/20 to-amber-800/20",
+    border: "border-orange-200 dark:border-orange-700"
+  },
+  "Finance & Accounts": {
+    primary: "from-yellow-600 via-amber-700 to-orange-800",
+    secondary: "from-yellow-50 to-amber-50",
+    accent: "bg-yellow-500",
+    text: "text-yellow-600",
+    lightBg: "from-yellow-50 to-amber-100",
+    darkBg: "from-yellow-900/20 to-amber-800/20",
+    border: "border-yellow-200 dark:border-yellow-700"
+  },
+  "Human Resources": {
+    primary: "from-emerald-600 via-green-700 to-teal-800",
+    secondary: "from-emerald-50 to-green-50",
+    accent: "bg-emerald-500",
+    text: "text-emerald-600",
+    lightBg: "from-emerald-50 to-green-100",
+    darkBg: "from-emerald-900/20 to-green-800/20",
+    border: "border-emerald-200 dark:border-emerald-700"
+  },
+  "Legal & Compliance": {
+    primary: "from-purple-600 via-violet-700 to-indigo-800",
+    secondary: "from-purple-50 to-violet-50",
+    accent: "bg-purple-500",
+    text: "text-purple-600",
+    lightBg: "from-purple-50 to-violet-100",
+    darkBg: "from-purple-900/20 to-violet-800/20",
+    border: "border-purple-200 dark:border-purple-700"
+  },
+  "Procurement & Contracts": {
+    primary: "from-teal-600 via-emerald-700 to-green-800",
+    secondary: "from-teal-50 to-emerald-50",
+    accent: "bg-teal-500",
+    text: "text-teal-600",
+    lightBg: "from-teal-50 to-emerald-100",
+    darkBg: "from-teal-900/20 to-emerald-800/20",
+    border: "border-teal-200 dark:border-teal-700"
+  },
+  "Corporate Communications": {
+    primary: "from-pink-600 via-rose-700 to-red-800",
+    secondary: "from-pink-50 to-rose-50",
+    accent: "bg-pink-500",
+    text: "text-pink-600",
+    lightBg: "from-pink-50 to-rose-100",
+    darkBg: "from-pink-900/20 to-rose-800/20",
+    border: "border-pink-200 dark:border-pink-700"
+  },
+  "Business Development": {
+    primary: "from-indigo-600 via-blue-700 to-cyan-800",
+    secondary: "from-indigo-50 to-blue-50",
+    accent: "bg-indigo-500",
+    text: "text-indigo-600",
+    lightBg: "from-indigo-50 to-blue-100",
+    darkBg: "from-indigo-900/20 to-blue-800/20",
+    border: "border-indigo-200 dark:border-indigo-700"
+  },
+  "Vigilance & Security": {
+    primary: "from-red-600 via-rose-700 to-pink-800",
+    secondary: "from-red-50 to-rose-50",
+    accent: "bg-red-500",
+    text: "text-red-600",
+    lightBg: "from-red-50 to-rose-100",
+    darkBg: "from-red-900/20 to-rose-800/20",
+    border: "border-red-200 dark:border-red-700"
+  },
+  "Information Technology & Systems": {
+    primary: "from-violet-600 via-purple-700 to-indigo-800",
+    secondary: "from-violet-50 to-purple-50",
+    accent: "bg-violet-500",
+    text: "text-violet-600",
+    lightBg: "from-violet-50 to-purple-100",
+    darkBg: "from-violet-900/20 to-purple-800/20",
+    border: "border-violet-200 dark:border-violet-700"
+  },
+  "Planning & Development": {
+    primary: "from-lime-600 via-green-700 to-emerald-800",
+    secondary: "from-lime-50 to-green-50",
+    accent: "bg-lime-500",
+    text: "text-lime-600",
+    lightBg: "from-lime-50 to-green-100",
+    darkBg: "from-lime-900/20 to-green-800/20",
+    border: "border-lime-200 dark:border-lime-700"
+  },
+  "Environment & Sustainability": {
+    primary: "from-green-600 via-emerald-700 to-teal-800",
+    secondary: "from-green-50 to-emerald-50",
+    accent: "bg-green-500",
+    text: "text-green-600",
+    lightBg: "from-green-50 to-emerald-100",
+    darkBg: "from-green-900/20 to-emerald-800/20",
+    border: "border-green-200 dark:border-green-700"
+  },
+  "Customer Relations & Services": {
+    primary: "from-sky-600 via-blue-700 to-indigo-800",
+    secondary: "from-sky-50 to-blue-50",
+    accent: "bg-sky-500",
+    text: "text-sky-600",
+    lightBg: "from-sky-50 to-blue-100",
+    darkBg: "from-sky-900/20 to-blue-800/20",
+    border: "border-sky-200 dark:border-sky-700"
+  },
+  "Project Management": {
+    primary: "from-orange-600 via-amber-700 to-yellow-800",
+    secondary: "from-orange-50 to-amber-50",
+    accent: "bg-orange-500",
+    text: "text-orange-600",
+    lightBg: "from-orange-50 to-amber-100",
+    darkBg: "from-orange-900/20 to-amber-800/20",
+    border: "border-orange-200 dark:border-orange-700"
+  },
+  // Legacy department mappings (for backward compatibility)
   "Engineering": {
     primary: "from-blue-600 via-blue-700 to-indigo-800",
     secondary: "from-blue-50 to-indigo-50",
@@ -138,6 +275,158 @@ const departmentThemes = {
 
 // Mock data for different departments
 const departmentData: Record<string, DepartmentInfo> = {
+  // KMRL Departments
+  "Operations & Maintenance": {
+    name: "Operations & Maintenance",
+    description: "Operational procedures, maintenance schedules, and performance reports",
+    totalFiles: 245,
+    pendingFiles: 18,
+    acceptedFiles: 210,
+    rejectedFiles: 17,
+    lastActivity: "1 hour ago",
+    staff: 28
+  },
+  "Engineering & Infrastructure": {
+    name: "Engineering & Infrastructure",
+    description: "Infrastructure planning, engineering designs, and technical documentation",
+    totalFiles: 298,
+    pendingFiles: 22,
+    acceptedFiles: 265,
+    rejectedFiles: 11,
+    lastActivity: "2 hours ago",
+    staff: 32
+  },
+  "Electrical & Mechanical": {
+    name: "Electrical & Mechanical",
+    description: "Electrical systems, mechanical equipment, and technical specifications",
+    totalFiles: 187,
+    pendingFiles: 14,
+    acceptedFiles: 165,
+    rejectedFiles: 8,
+    lastActivity: "3 hours ago",
+    staff: 24
+  },
+  "Finance & Accounts": {
+    name: "Finance & Accounts",
+    description: "Financial reports, budgets, accounts, and procurement documentation",
+    totalFiles: 356,
+    pendingFiles: 28,
+    acceptedFiles: 312,
+    rejectedFiles: 16,
+    lastActivity: "30 minutes ago",
+    staff: 18
+  },
+  "Human Resources": {
+    name: "Human Resources",
+    description: "Employee records, policies, training materials, and HR documentation",
+    totalFiles: 142,
+    pendingFiles: 9,
+    acceptedFiles: 125,
+    rejectedFiles: 8,
+    lastActivity: "1 hour ago",
+    staff: 12
+  },
+  "Legal & Compliance": {
+    name: "Legal & Compliance",
+    description: "Legal documents, contracts, compliance reports, and regulatory documentation",
+    totalFiles: 198,
+    pendingFiles: 15,
+    acceptedFiles: 171,
+    rejectedFiles: 12,
+    lastActivity: "2 hours ago",
+    staff: 8
+  },
+  "Procurement & Contracts": {
+    name: "Procurement & Contracts",
+    description: "Purchase orders, vendor contracts, procurement policies, and supplier documentation",
+    totalFiles: 276,
+    pendingFiles: 21,
+    acceptedFiles: 240,
+    rejectedFiles: 15,
+    lastActivity: "4 hours ago",
+    staff: 15
+  },
+  "Corporate Communications": {
+    name: "Corporate Communications",
+    description: "Public relations, internal communications, media releases, and corporate messaging",
+    totalFiles: 89,
+    pendingFiles: 6,
+    acceptedFiles: 78,
+    rejectedFiles: 5,
+    lastActivity: "5 hours ago",
+    staff: 6
+  },
+  "Business Development": {
+    name: "Business Development",
+    description: "Strategic planning, market analysis, partnership agreements, and growth initiatives",
+    totalFiles: 134,
+    pendingFiles: 11,
+    acceptedFiles: 115,
+    rejectedFiles: 8,
+    lastActivity: "3 hours ago",
+    staff: 10
+  },
+  "Vigilance & Security": {
+    name: "Vigilance & Security",
+    description: "Security protocols, incident reports, vigilance procedures, and safety documentation",
+    totalFiles: 167,
+    pendingFiles: 12,
+    acceptedFiles: 145,
+    rejectedFiles: 10,
+    lastActivity: "1 hour ago",
+    staff: 20
+  },
+  "Information Technology & Systems": {
+    name: "Information Technology & Systems",
+    description: "IT infrastructure, system documentation, software policies, and technical support",
+    totalFiles: 223,
+    pendingFiles: 17,
+    acceptedFiles: 195,
+    rejectedFiles: 11,
+    lastActivity: "2 hours ago",
+    staff: 16
+  },
+  "Planning & Development": {
+    name: "Planning & Development",
+    description: "Project planning, development strategies, urban planning, and strategic documentation",
+    totalFiles: 189,
+    pendingFiles: 14,
+    acceptedFiles: 165,
+    rejectedFiles: 10,
+    lastActivity: "6 hours ago",
+    staff: 14
+  },
+  "Environment & Sustainability": {
+    name: "Environment & Sustainability",
+    description: "Environmental impact assessments, sustainability reports, and green initiatives",
+    totalFiles: 98,
+    pendingFiles: 7,
+    acceptedFiles: 85,
+    rejectedFiles: 6,
+    lastActivity: "4 hours ago",
+    staff: 8
+  },
+  "Customer Relations & Services": {
+    name: "Customer Relations & Services",
+    description: "Customer feedback, service reports, complaint handling, and passenger services",
+    totalFiles: 156,
+    pendingFiles: 12,
+    acceptedFiles: 135,
+    rejectedFiles: 9,
+    lastActivity: "30 minutes ago",
+    staff: 22
+  },
+  "Project Management": {
+    name: "Project Management",
+    description: "Project documentation, timelines, resource management, and progress reports",
+    totalFiles: 201,
+    pendingFiles: 16,
+    acceptedFiles: 175,
+    rejectedFiles: 10,
+    lastActivity: "1 hour ago",
+    staff: 18
+  },
+  // Legacy department mappings (for backward compatibility)
   "Engineering": {
     name: "Engineering Department",
     description: "Technical documentation, project plans, and engineering reports",
@@ -242,10 +531,49 @@ const departmentData: Record<string, DepartmentInfo> = {
 
 const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
   const [activeSection, setActiveSection] = useState("overview")
-  const deptInfo = departmentData[department] || departmentData["Engineering"]
-  const theme = departmentThemes[department as keyof typeof departmentThemes] || departmentThemes["Engineering"]
   
-  const completionRate = Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100)
+  // Get department info with fallback
+  const deptInfo = departmentData[department] || departmentData["Human Resources"] || {
+    name: department,
+    description: "Department documentation and file management",
+    totalFiles: 0,
+    pendingFiles: 0,
+    acceptedFiles: 0,
+    rejectedFiles: 0,
+    lastActivity: "Recently",
+    staff: 0
+  }
+  
+  // Get theme with fallback - try exact match first, then legacy mapping
+  const getThemeForDepartment = (deptName: string) => {
+    // Direct match
+    if (departmentThemes[deptName as keyof typeof departmentThemes]) {
+      return departmentThemes[deptName as keyof typeof departmentThemes]
+    }
+    
+    // Fallback mapping for common variations
+    const fallbackMap: Record<string, keyof typeof departmentThemes> = {
+      "Engineering": "Engineering & Infrastructure",
+      "HR": "Human Resources", 
+      "Legal": "Legal & Compliance",
+      "Finance": "Finance & Accounts",
+      "Operations": "Operations & Maintenance",
+      "Security": "Vigilance & Security",
+      "IT": "Information Technology & Systems",
+      "Procurement": "Procurement & Contracts"
+    }
+    
+    const fallbackKey = fallbackMap[deptName]
+    if (fallbackKey && departmentThemes[fallbackKey]) {
+      return departmentThemes[fallbackKey]
+    }
+    
+    // Default fallback
+    return departmentThemes["Human Resources"]
+  }
+  
+  const theme = getThemeForDepartment(department)
+  const completionRate = Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100) || 0
 
   const renderContent = () => {
     switch (activeSection) {

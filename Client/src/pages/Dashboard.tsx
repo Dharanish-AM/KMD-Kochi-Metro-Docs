@@ -19,6 +19,7 @@ interface Department {
   completionRate: number
   lastUpdated: string
   status: "active" | "maintenance" | "inactive"
+  slug: string
 }
 
 export function Dashboard() {
@@ -43,7 +44,8 @@ export function Dashboard() {
         activeUsers: dept.employees?.length || 0,
         completionRate: dept.documents?.length > 0 ? Math.round(Math.random() * 100) : 0, // Mock calculation
         lastUpdated: new Date(dept.createdAt).toLocaleDateString() || "Recently",
-        status: "active" as const
+        status: "active" as const,
+        slug: dept.name.toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and')
       }))
       
       setDepartments(transformedDepartments)
@@ -68,6 +70,10 @@ export function Dashboard() {
     await fetchDepartments()
   }
 
+  const handleDepartmentClick = (department: Department) => {
+    console.log("Department clicked:", department)
+  }
+
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -84,12 +90,11 @@ export function Dashboard() {
       case "dashboard":
         return (
           <div className="p-6 space-y-6">
-            <OverviewStats departments={departments} />
             <div className="grid gap-6 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <DepartmentGrid 
                   departments={departments} 
-                  onCreateDepartment={handleCreateDepartment}
+                  onDepartmentClick={handleDepartmentClick}
                 />
               </div>
               <div>
@@ -109,7 +114,7 @@ export function Dashboard() {
           <div className="p-6 space-y-6">
             <DepartmentGrid 
               departments={departments} 
-              onCreateDepartment={handleCreateDepartment}
+              onDepartmentClick={handleDepartmentClick}
             />
           </div>
         )
@@ -140,12 +145,11 @@ export function Dashboard() {
       default:
         return (
           <div className="p-6 space-y-6">
-            <OverviewStats departments={departments} />
             <div className="grid gap-6 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <DepartmentGrid 
                   departments={departments} 
-                  onCreateDepartment={handleCreateDepartment}
+                  onDepartmentClick={handleDepartmentClick}
                 />
               </div>
               <div>

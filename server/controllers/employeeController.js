@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const { generateToken } = require("../utils/jwt");
 
 exports.createUser = async (req, res) => {
+  console.log("Create User Request Body:", req.body);
   try {
     const { name, email, phone, password, role, departmentId } = req.body;
 
@@ -134,6 +135,119 @@ exports.getUser = async (req, res) => {
     res.status(200).json(user);
   } catch (error) {
     console.error("Error fetching user:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.updateUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { name, email, phone, role, departmentId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    // Find the user first
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if email is being changed and if it already exists
+    if (email && email !== user.email) {
+      const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+      if (existingUser) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+    }
+
+    // For non-admin users, department is required
+    if (role && role !== "Admin" && !departmentId && !user.department) {
+      return res.status(400).json({ message: "Department ID is required for non-admin users" });
+    }
+
+    // If departmentId is provided, validate it exists
+    if (departmentId) {
+      const department = await Department.findById(departmentId);
+      if (!department) {
+        return res.status(400).json({ message: "Invalid department ID" });
+      }
+    }
+
+    // Prepare update data
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (phone !== undefined) updateData.phone = phone;
+    if (role) updateData.role = role;
+    if (departmentId) updateData.department = departmentId;
+
+    // Remove user from old department if department is changing
+    if (departmentId && user.department && user.department.toString() !== departmentId) {
+      await Department.findByIdAndUpdate(
+        user.department,
+        { $pull: { employees: userId } }
+      );
+    }
+
+    // Update the user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true, runValidators: true }
+    ).select("-password").populate("department");
+
+    // Add user to new department if department is changing
+    if (departmentId && (!user.department || user.department.toString() !== departmentId)) {
+      await Department.findByIdAndUpdate(
+        departmentId,
+        { $addToSet: { employees: userId } }
+      );
+    }
+
+    res.status(200).json({
+      message: "User updated successfully",
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.deleteUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    // Find the user first
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Remove user from department if they have one
+    if (user.department) {
+      await Department.findByIdAndUpdate(
+        user.department,
+        { $pull: { employees: userId } }
+      );
+    }
+
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({
+      message: "User deleted successfully"
+    });
+
+  } catch (error) {
+    console.error("Error deleting user:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

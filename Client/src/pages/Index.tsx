@@ -5,67 +5,69 @@ import { OverviewStats } from "@/components/dashboard/overview-stats"
 import { DepartmentGrid } from "@/components/dashboard/department-grid"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { ImportantPoints } from "@/components/dashboard/important-points"
-import axiosInstance from "@/Utils/Auth/axiosInstance"
-import { showToast } from "@/Utils/toaster"
+import { departmentAPI, transformDepartmentData } from "@/lib/api"
 
 interface Department {
   id: string
   name: string
   description?: string
+  category?: string
   totalDocs: number
   pendingDocs: number
   activeUsers: number
   completionRate: number
   lastUpdated: string
   status: "active" | "maintenance" | "inactive"
+  slug: string
 }
 
 const Index = () => {
   const [departments, setDepartments] = useState<Department[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch departments from database
-  const fetchDepartments = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-      
-      const response = await axiosInstance.get("/api/departments/get-department-ui")
-      const departmentsData = response.data
-      
-      // Transform backend data to frontend format
-      const transformedDepartments: Department[] = departmentsData.map((dept: any) => ({
-        id: dept._id,
-        name: dept.name,
-        description: dept.description || "",
-        totalDocs: dept.documents?.length || 0,
-        pendingDocs: Math.floor((dept.documents?.length || 0) * 0.1), // Simulate pending docs
-        activeUsers: dept.employees?.length || 0,
-        completionRate: dept.documents?.length > 0 ? Math.floor(Math.random() * 20) + 80 : 0, // Simulate completion rate
-        lastUpdated: new Date(dept.createdAt).toLocaleDateString() || "Unknown",
-        status: "active" as const
-      }))
-      
-      setDepartments(transformedDepartments)
-    } catch (error: any) {
-      console.error("Error fetching departments:", error)
-      setError("Failed to fetch departments")
-      showToast.error("Error", "Failed to load departments from database")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Fetch departments on component mount
+  // Fetch departments from API
   useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const apiDepartments = await departmentAPI.getDepartments()
+        const transformedDepartments = apiDepartments.map(transformDepartmentData)
+        
+        setDepartments(transformedDepartments)
+      } catch (err) {
+        console.error('Failed to fetch departments:', err)
+        setError('Failed to load departments. Please try again later.')
+        
+        // Fallback to empty array or you could keep some default data
+        setDepartments([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchDepartments()
   }, [])
 
   const handleCreateDepartment = async (newDepartment: Omit<Department, "id" | "totalDocs" | "pendingDocs" | "activeUsers" | "completionRate" | "lastUpdated" | "status">) => {
-    // The create department dialog already handles the API call
-    // Just refresh the departments list
-    await fetchDepartments()
+    // try {
+    //   const response = await departmentAPI.createDepartment({
+    //     name: newDepartment.name,
+    //     description: newDepartment.description
+    //   })
+      
+    //   // Transform the new department and add it to the list
+    //   const transformedDepartment = transformDepartmentData(response.department)
+    //   setDepartments(prev => [...prev, transformedDepartment])
+      
+    //   // You could also refresh the entire list
+    //   // window.location.reload() or re-fetch data
+    // } catch (err) {
+    //   console.error('Failed to create department:', err)
+    //   setError('Failed to create department. Please try again.')
+    // }
   }
 
   const handleDepartmentClick = (department: Department) => {
@@ -84,41 +86,76 @@ const Index = () => {
         />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background">
           <div className="p-6 space-y-6">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                  <p className="text-gray-600">Loading departments...</p>
+            <OverviewStats />
+            
+            {/* Error State */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="text-red-800">
+                    <h3 className="text-sm font-medium">Error Loading Data</h3>
+                    <p className="text-sm mt-1">{error}</p>
+                  </div>
                 </div>
               </div>
-            ) : error ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <button 
-                    onClick={fetchDepartments}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Retry
-                  </button>
+            )}
+            
+            {/* Loading State */}
+            {loading ? (
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <div className="bg-white rounded-lg border p-6">
+                    <div className="animate-pulse">
+                      <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[...Array(6)].map((_, i) => (
+                          <div key={i} className="border rounded-lg p-4">
+                            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                            <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
+                            <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div className="bg-white rounded-lg border p-4">
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                      <div className="space-y-2">
+                        <div className="h-3 bg-gray-200 rounded"></div>
+                        <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                        <div className="h-3 bg-gray-200 rounded w-4/6"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg border p-4">
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                      <div className="space-y-2">
+                        <div className="h-3 bg-gray-200 rounded"></div>
+                        <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                        <div className="h-3 bg-gray-200 rounded w-4/6"></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
-              <>
-                <OverviewStats />
-                <div className="grid gap-6 lg:grid-cols-3">
-                  <div className="lg:col-span-2">
-                    <DepartmentGrid 
-                      departments={departments} 
-                      onDepartmentClick={handleDepartmentClick}
-                    />
-                  </div>
-                  <div className="space-y-6">
-                    <ImportantPoints />
-                    <RecentActivity />
-                  </div>
+              /* Main Content */
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <DepartmentGrid 
+                    departments={departments} 
+                    onDepartmentClick={handleDepartmentClick}
+                  />
                 </div>
-              </>
+                <div className="space-y-6">
+                  <ImportantPoints />
+                  <RecentActivity />
+                </div>
+              </div>
             )}
           </div>
         </main>
