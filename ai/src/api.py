@@ -1,3 +1,4 @@
+from fastapi import Body
 from fastapi import FastAPI, UploadFile
 from pipeline import parser, ocr, translate, classify, metadata, embeddings, summarize
 from utils.langdetect_utils import detect_language
@@ -79,4 +80,21 @@ async def process_file(file: UploadFile):
         "metadata": meta,
         "embedding_vector": embedding_vector,
         "summary": summary,
+    }
+
+
+# RAG search endpoint
+from pydantic import BaseModel
+
+class RAGSearchRequest(BaseModel):
+    query: str
+
+
+@app.post("/rag_search")
+async def rag_search(request: RAGSearchRequest):
+    logger.info(f"Received RAG search query: {request.query}")
+    embedding_vector = embeddings.embed_text([request.query])[0].tolist()
+    return {
+        "query": request.query,
+        "embedding_vector": embedding_vector,
     }

@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 const connectDB = require('./config/db');
-const quadrantClient = require('./utils/qdrantClient');
+const quadrantClient = require('./config/qdrantClient');
 connectDB();
 
 app.use('/api/admin', require('./routes/adminRoutes'));

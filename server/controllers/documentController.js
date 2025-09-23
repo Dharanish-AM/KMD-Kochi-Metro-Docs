@@ -7,11 +7,12 @@ const Department = require("../models/Department");
 const path = require("path");
 const formidable = require("formidable");
 const mongoose = require("mongoose");
+const qdrant = require("../config/qdrantClient").client;
+const { v4: uuidv4 } = require("uuid");
 
 exports.uploadDocument = async (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  console.log(userId)
 
   try {
     const user = await Employee.findById(userId);
@@ -37,7 +38,6 @@ exports.uploadDocument = async (req, res) => {
         return res.status(500).json({ error: "Error uploading document" });
       }
 
-      // Flatten files object to find first valid file
       const allFiles = Object.values(files).flat();
       const file = allFiles.find((f) => f && (f.filepath || f.path));
 
@@ -64,41 +64,23 @@ exports.uploadDocument = async (req, res) => {
       }
 
       try {
-        let aiData = {
-          summary: "AI processing unavailable",
-          classification: "Unclassified", 
-          metadata: {},
-          translated_text: null,
-          detected_language: "unknown"
-        };
+        // 🔹 Send file to AI pipeline
+        const formData = new FormData();
+        formData.append(
+          "file",
+          fs.createReadStream(destPath),
+          file.originalFilename
+        );
 
-        // Try to process with AI server if available
-        if (process.env.AI_SERVER_URL) {
-          try {
-            const formData = new FormData();
-            formData.append(
-              "file",
-              fs.createReadStream(destPath),
-              file.originalFilename
-            );
-
-            const aiResponse = await axios.post(
-              `${process.env.AI_SERVER_URL}/process`,
-              formData,
-              {
-                headers: formData.getHeaders(),
-                maxContentLength: Infinity,
-                maxBodyLength: Infinity,
-                timeout: 30000, // 30 seconds timeout
-              }
-            );
-
-            aiData = aiResponse.data;
-          } catch (aiError) {
-            console.warn(`AI processing failed for user ${userId}:`, aiError.message);
-            // Continue with default values
+        const aiResponse = await axios.post(
+          `${process.env.AI_SERVER_URL}/process`,
+          formData,
+          {
+            headers: formData.getHeaders(),
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
           }
-        }
+        );
 
         const {
           summary,
@@ -106,17 +88,18 @@ exports.uploadDocument = async (req, res) => {
           metadata,
           translated_text,
           detected_language,
-        } = aiData;
+          embedding_vector, // 👈 ensure AI server includes this
+        } = aiResponse.data;
 
+        // 🔹 Save document in MongoDB
         const document = new Document({
           uploadedBy: userId,
-          department: user.department, // Use user's department directly
+          department: fields.department || user.department,
           fileUrl: destPath,
-          title: fields.title ? fields.title[0] : file.originalFilename, // Handle array format
+          title: fields.title || file.originalFilename,
           fileName: file.originalFilename,
           fileType: file.mimetype,
           fileSize: file.size,
-          category: fields.category ? fields.category[0] : 'General', // Handle array format
           summary,
           classification,
           metadata,
@@ -133,8 +116,35 @@ exports.uploadDocument = async (req, res) => {
         }
         await department.save();
 
+        // 🔹 Store embeddings in Qdrant
+        let embeddingsStored = true;
+        if (embedding_vector && Array.isArray(embedding_vector)) {
+          try {
+            const qdrantId = uuidv4();
+            await qdrant.upsert("documents", {
+              points: [
+                {
+                  id: qdrantId, // Use UUID instead of raw ObjectId string
+                  vector: embedding_vector,
+                  payload: {
+                    fileName: file.originalFilename,
+                    department: department.name,
+                    documentId: document._id.toString(),
+                  },
+                },
+              ],
+            });
+            console.log(
+              `Stored embeddings in Qdrant for document ${document._id}`
+            );
+          } catch (qErr) {
+            embeddingsStored = false;
+            console.error(`Failed to upsert embeddings into Qdrant:`, qErr);
+          }
+        }
+
         res.status(201).json({
-          message: "Document uploaded and processed successfully",
+          message: "Document uploaded, processed, and stored successfully",
           document,
           aiData: {
             summary,
@@ -142,26 +152,22 @@ exports.uploadDocument = async (req, res) => {
             metadata,
             translated_text,
             detected_language,
+            embedding_vector,
           },
+          embeddingsStored,
         });
       } catch (error) {
-        console.error(`User ${userId} - Processing error:`, error);
-        
-        // Clean up uploaded file on error
-        try {
-          if (fs.existsSync(destPath)) {
-            fs.unlinkSync(destPath);
-          }
-        } catch (cleanupError) {
-          console.error(`Failed to cleanup file ${destPath}:`, cleanupError);
-        }
-
         if (error.response) {
+          console.error(
+            `User ${userId} - AI server error:`,
+            error.response.data
+          );
           return res.status(500).json({
             error: "Error processing document with AI server",
             details: error.response.data,
           });
         }
+        console.error(`User ${userId} - Internal server error:`, error);
         res.status(500).json({ error: "Internal server error" });
       }
     });
@@ -198,6 +204,114 @@ exports.getDocumentsByDepartment = async (req, res) => {
       error
     );
     res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+exports.RAGSearchDocument = async (req, res) => {
+  try {
+    const { query, topK = 5 } = req.query;
+
+    console.log("🔹 RAG Search initiated.");
+    console.log("Query received:", query);
+    console.log("Top K:", topK);
+
+    if (!query || query.trim() === "") {
+      console.warn("⚠️ No query provided.");
+      return res.status(400).json({ error: "Search query is required" });
+    }
+
+    // Step 1: Get embedding vector from AI server
+    console.log("🔹 Fetching embedding vector from AI server...");
+    let embeddingVector;
+    try {
+      const aiResponse = await axios.post(
+        `${process.env.AI_SERVER_URL}/rag_search`,
+        { query },
+        { timeout: 60000 }
+      );
+      console.log("AI server response:", aiResponse.data);
+
+      embeddingVector = aiResponse.data.embedding_vector;
+      if (!embeddingVector || !Array.isArray(embeddingVector)) {
+        console.error(
+          "❌ Invalid embedding vector returned by AI server:",
+          embeddingVector
+        );
+        return res
+          .status(500)
+          .json({ error: "AI server did not return a valid embedding vector" });
+      }
+    } catch (err) {
+      console.error(
+        "❌ Failed to get embedding vector from AI server:",
+        err.message
+      );
+      return res
+        .status(500)
+        .json({ error: "Failed to get embedding vector from AI server" });
+    }
+
+    // Step 2: Search in Qdrant
+    console.log("🔹 Searching Qdrant collection 'documents'...");
+    let qdrantResults = [];
+    try {
+      const searchResponse = await qdrant.search("documents", {
+        vector: embeddingVector,
+        limit: Number(topK),
+        with_payload: true,
+      });
+      console.log("Raw Qdrant results:", searchResponse);
+      qdrantResults = searchResponse || [];
+    } catch (qErr) {
+      console.error("❌ Failed to search Qdrant:", qErr.message);
+      return res
+        .status(500)
+        .json({
+          error: "Failed to search documents in Qdrant",
+          details: qErr.message,
+        });
+    }
+
+    // Step 3: Filter by similarity threshold
+    const SIMILARITY_THRESHOLD = 0.4;
+    const documentIds = qdrantResults
+      .filter((res) => res.score >= SIMILARITY_THRESHOLD)
+      .map((res) => res.payload?.documentId)
+      .filter(Boolean);
+
+    console.log("Filtered document IDs (above threshold):", documentIds);
+
+    if (documentIds.length === 0) {
+      console.info(
+        "⚠️ No relevant documents found above similarity threshold."
+      );
+      return res
+        .status(200)
+        .json({ message: "No relevant documents found", query, results: [] });
+    }
+
+    // Step 4: Fetch full documents from MongoDB
+    console.log("🔹 Fetching documents from MongoDB...");
+    const documents = await Document.find({ _id: { $in: documentIds } })
+      .populate("uploadedBy", "name email")
+      .populate("department", "name");
+    console.log("Fetched documents from MongoDB:", documents);
+
+    // Step 5: Sort documents according to Qdrant search order
+    const sortedDocuments = documentIds.map((id) =>
+      documents.find((doc) => doc._id.toString() === id)
+    );
+    console.log("Sorted documents matching Qdrant order:", sortedDocuments);
+
+    // Step 6: Return results
+    return res.status(200).json({
+      message: "RAG search completed successfully",
+      query,
+      results: sortedDocuments,
+    });
+  } catch (error) {
+    console.error("❌ Internal RAG search error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
