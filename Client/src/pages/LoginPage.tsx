@@ -59,7 +59,7 @@ const LoginPage = () => {
       });
 
       // Store token and user data in localStorage
-      const { token, user, userType } = response.data;
+      const { token, user, userType, redirectTo } = response.data;
       
       // Store the token
       setToken(token);
@@ -76,8 +76,13 @@ const LoginPage = () => {
         `Welcome back, ${user.name}!`
       );
       
-      // Redirect to dashboard
-      navigate("/");
+      // Redirect based on user role and department
+      if (redirectTo) {
+        navigate(redirectTo);
+      } else {
+        // Fallback redirect
+        navigate(userType === "admin" ? "/admin-dashboard" : "/");
+      }
       
     } catch (err: any) {
       console.error("Login error:", err);

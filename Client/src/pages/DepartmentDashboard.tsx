@@ -26,7 +26,7 @@ import { DepartmentStats } from "@/components/departments/department-stats"
 import { DepartmentSidebarLayout } from "@/components/layout/DepartmentSidebarLayout"
 import { DepartmentProfileSettings } from "@/components/departments/department-profile-settings"
 import { DepartmentNotifications } from "@/components/departments/department-notifications"
-
+import axiosInstance from "@/Utils/Auth/axiosInstance"
 interface DepartmentDashboardProps {
   department: string
 }

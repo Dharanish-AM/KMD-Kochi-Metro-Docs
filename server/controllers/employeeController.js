@@ -98,6 +98,18 @@ exports.login = async (req, res) => {
 
     const token = generateToken(tokenPayload);
 
+    // Helper function to generate department URL path
+    const generateDepartmentPath = (departmentName) => {
+      if (!departmentName) return null;
+      return departmentName
+        .toLowerCase()
+        .replace(/&/g, '') // Remove &
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/[^a-z0-9-]/g, '') // Remove special characters except hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+        .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+    };
+
     // Prepare response based on role
     const response = {
       message: "Login successful",
@@ -112,6 +124,16 @@ exports.login = async (req, res) => {
       token,
       userType: user.role === "Admin" ? "admin" : "employee",
     };
+
+    // Add department routing information for non-admin users
+    if (user.role !== "Admin" && user.department) {
+      response.departmentPath = generateDepartmentPath(user.department.name);
+      response.redirectTo = `/${response.departmentPath}`;
+    } else if (user.role === "Admin") {
+      response.redirectTo = "/";
+    } else {
+      response.redirectTo = "/dashboard";
+    }
 
     res.status(200).json(response);
   } catch (error) {
@@ -248,6 +270,38 @@ exports.deleteUser = async (req, res) => {
 
   } catch (error) {
     console.error("Error deleting user:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.getAllUsers = async (req, res) => {
+  try {
+  
+    const users = await User.find({ role: { $ne: "Admin" } })
+      .select("-password")
+      .populate("department", "name")
+      .sort({ joinedAt: -1 });
+
+    
+    const transformedUsers = users.map(user => ({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      department: user.department ? user.department.name : "No Department",
+      joinedAt: user.joinedAt,
+      lastLogin: user.lastLogin || "Never"
+    }));
+
+    res.status(200).json({
+      message: "Users fetched successfully",
+      users: transformedUsers,
+      total: transformedUsers.length
+    });
+
+  } catch (error) {
+    console.error("Error fetching all users:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -46,6 +46,29 @@ const DocumentSchema = new Schema({
   summary: {
     type: String,
   },
+  classification: {
+    type: String,
+  },
+  fileName: {
+    type: String,
+    required: true,
+  },
+  fileType: {
+    type: String,
+  },
+  fileSize: {
+    type: Number,
+  },
+  category: {
+    type: String,
+    default: 'General',
+  },
+  detected_language: {
+    type: String,
+  },
+  translated_text: {
+    type: String,
+  },
   uploadedBy: {
     type: Schema.Types.ObjectId,
     ref: "User",

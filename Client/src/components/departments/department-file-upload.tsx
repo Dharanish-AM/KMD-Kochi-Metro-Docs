@@ -13,9 +13,11 @@ import {
   FileText,
   AlertCircle,
   CheckCircle,
-  Loader2
+  Loader2,
+  Clock
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import axiosInstance from "@/Utils/Auth/axiosInstance"
 
 interface DepartmentFileUploadProps {
   department: string
@@ -25,7 +27,7 @@ interface UploadFile {
   id: string
   file: File
   progress: number
-  status: "uploading" | "completed" | "error"
+  status: "pending" | "uploading" | "completed" | "error"
   description?: string
   category?: string
 }
@@ -165,44 +167,117 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
   }
 
   const handleFiles = (newFiles: File[]) => {
-    const uploadFiles: UploadFile[] = newFiles.map(file => ({
+    // Validate file types and size
+    const validFiles = newFiles.filter(file => {
+      const maxSize = 50 * 1024 * 1024; // 50MB as per backend
+      const allowedTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword',
+        'text/plain',
+        'image/jpeg',
+        'image/png',
+        'image/jpg'
+      ];
+
+      if (file.size > maxSize) {
+        toast({
+          title: "File Too Large",
+          description: `${file.name} is larger than 50MB limit.`,
+          variant: "destructive"
+        });
+        return false;
+      }
+
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Invalid File Type",
+          description: `${file.name} is not a supported file type.`,
+          variant: "destructive"
+        });
+        return false;
+      }
+
+      return true;
+    });
+
+    const uploadFiles: UploadFile[] = validFiles.map(file => ({
       id: Math.random().toString(36).substr(2, 9),
       file,
       progress: 0,
-      status: "uploading" as const,
-      description: uploadDescription,
+      status: "pending" as const,
+      description: uploadDescription || file.name,
       category: selectedCategory
     }))
 
     setFiles(prev => [...prev, ...uploadFiles])
   }
 
-  const simulateUpload = (fileId: string) => {
-    const interval = setInterval(() => {
-      setFiles(prev => prev.map(file => {
-        if (file.id === fileId) {
-          const newProgress = Math.min(file.progress + Math.random() * 15, 100)
-          const isCompleted = newProgress >= 100
-          
-          return {
-            ...file,
-            progress: newProgress,
-            status: isCompleted ? "completed" : "uploading"
+  const uploadFileToBackend = async (uploadFile: UploadFile) => {
+    const { file, description, category } = uploadFile;
+    
+    try {
+      // Set status to uploading when upload actually starts
+      setFiles(prev => prev.map(f => 
+        f.id === uploadFile.id 
+          ? { ...f, status: "uploading", progress: 0 }
+          : f
+      ));
+
+      // Get user data from localStorage
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      if (!user.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("title", description || file.name);
+      formData.append("category", category || "");
+      
+      // Department will be automatically fetched from user's profile in backend
+      
+      const response = await axiosInstance.post(
+        `/api/documents/upload?userId=${user.id}`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setFiles(prev => prev.map(f => 
+                f.id === uploadFile.id 
+                  ? { ...f, progress, status: "uploading" }
+                  : f
+              ));
+            }
           }
         }
-        return file
-      }))
-    }, 200)
+      );
 
-    setTimeout(() => {
-      clearInterval(interval)
-      setFiles(prev => prev.map(file => 
-        file.id === fileId 
-          ? { ...file, progress: 100, status: "completed" }
-          : file
-      ))
-    }, 3000)
-  }
+      // Update file status to completed
+      setFiles(prev => prev.map(f => 
+        f.id === uploadFile.id 
+          ? { ...f, progress: 100, status: "completed" }
+          : f
+      ));
+
+      return response.data;
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      
+      // Update file status to error
+      setFiles(prev => prev.map(f => 
+        f.id === uploadFile.id 
+          ? { ...f, status: "error" }
+          : f
+      ));
+
+      throw error;
+    }
+  };
 
   const removeFile = (fileId: string) => {
     setFiles(prev => prev.filter(file => file.id !== fileId))
@@ -227,28 +302,64 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
       return
     }
 
+    if (pendingFiles === 0) {
+      toast({
+        title: "No Files to Upload",
+        description: "All files have already been processed.",
+        variant: "destructive"
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
-    // Simulate upload process for all files
-    files.forEach(file => {
-      simulateUpload(file.id)
-    })
-
-    // Simulate submission delay
-    setTimeout(() => {
-      setIsSubmitting(false)
-      toast({
-        title: "Files Submitted Successfully!",
-        description: `${files.length} files have been submitted for review.`,
-      })
+    try {
+      // Only upload pending files
+      const pendingFilesToUpload = files.filter(f => f.status === "pending");
+      const uploadPromises = pendingFilesToUpload.map(file => uploadFileToBackend(file));
       
-      // Clear form after successful submission
-      setTimeout(() => {
-        setFiles([])
-        setUploadDescription("")
-        setSelectedCategory("")
-      }, 2000)
-    }, 3500)
+      // Wait for all uploads to complete
+      const results = await Promise.allSettled(uploadPromises);
+      
+      // Check results
+      const successCount = results.filter(result => result.status === 'fulfilled').length;
+      const errorCount = results.filter(result => result.status === 'rejected').length;
+
+      if (successCount > 0) {
+        toast({
+          title: "Upload Successful!",
+          description: `${successCount} file${successCount > 1 ? 's' : ''} uploaded successfully${errorCount > 0 ? `. ${errorCount} file${errorCount > 1 ? 's' : ''} failed.` : '.'}`,
+          variant: successCount === pendingFilesToUpload.length ? "default" : "destructive"
+        });
+      }
+
+      if (errorCount === pendingFilesToUpload.length) {
+        toast({
+          title: "Upload Failed",
+          description: "All files failed to upload. Please check your connection and try again.",
+          variant: "destructive"
+        });
+      }
+
+      // Clear completed and pending files after successful submission
+      if (successCount > 0) {
+        setTimeout(() => {
+          setFiles(prev => prev.filter(f => f.status === "error")) // Keep only error files
+          setUploadDescription("")
+          // Don't clear category in case user wants to upload more files
+        }, 2000)
+      }
+
+    } catch (error: any) {
+      console.error("Submission error:", error);
+      toast({
+        title: "Upload Error",
+        description: error.response?.data?.error || "Failed to upload files. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const formatFileSize = (bytes: number) => {
@@ -260,6 +371,9 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
   }
 
   const completedFiles = files.filter(f => f.status === "completed").length
+  const pendingFiles = files.filter(f => f.status === "pending").length
+  const uploadingFiles = files.filter(f => f.status === "uploading").length
+  const errorFiles = files.filter(f => f.status === "error").length
   const totalSize = files.reduce((acc, file) => acc + file.file.size, 0)
 
   return (
@@ -393,10 +507,12 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {files.length} Files Ready for Submission
+                      {pendingFiles} Files Ready for Submission
                     </h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       Total size: {formatFileSize(totalSize)} • Category: {selectedCategory || "Not selected"}
+                      {completedFiles > 0 && <span className="ml-2 text-green-600">• {completedFiles} uploaded</span>}
+                      {errorFiles > 0 && <span className="ml-2 text-red-600">• {errorFiles} failed</span>}
                     </p>
                   </div>
                 </div>
@@ -484,7 +600,7 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
                       <div className="flex items-center space-x-3">
                         <Progress value={file.progress} className="flex-1 h-2" />
                         <span className="text-xs font-medium text-gray-900 dark:text-white min-w-[3rem] text-right">
-                          {Math.round(file.progress)}%
+                          {file.status === "pending" ? "Ready" : `${Math.round(file.progress)}%`}
                         </span>
                         <div className="min-w-[1.5rem] flex justify-center">
                           {file.status === "completed" && (
@@ -492,6 +608,12 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
                           )}
                           {file.status === "uploading" && (
                             <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                          )}
+                          {file.status === "error" && (
+                            <AlertCircle className="h-5 w-5 text-red-500" />
+                          )}
+                          {file.status === "pending" && (
+                            <Clock className="h-5 w-5 text-gray-400" />
                           )}
                         </div>
                       </div>

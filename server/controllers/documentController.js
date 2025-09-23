@@ -11,6 +11,7 @@ const mongoose = require("mongoose");
 exports.uploadDocument = async (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  console.log(userId)
 
   try {
     const user = await Employee.findById(userId);
@@ -63,22 +64,41 @@ exports.uploadDocument = async (req, res) => {
       }
 
       try {
-        const formData = new FormData();
-        formData.append(
-          "file",
-          fs.createReadStream(destPath),
-          file.originalFilename
-        );
+        let aiData = {
+          summary: "AI processing unavailable",
+          classification: "Unclassified", 
+          metadata: {},
+          translated_text: null,
+          detected_language: "unknown"
+        };
 
-        const aiResponse = await axios.post(
-          `${process.env.AI_SERVER_URL}/process`,
-          formData,
-          {
-            headers: formData.getHeaders(),
-            maxContentLength: Infinity,
-            maxBodyLength: Infinity,
+        // Try to process with AI server if available
+        if (process.env.AI_SERVER_URL) {
+          try {
+            const formData = new FormData();
+            formData.append(
+              "file",
+              fs.createReadStream(destPath),
+              file.originalFilename
+            );
+
+            const aiResponse = await axios.post(
+              `${process.env.AI_SERVER_URL}/process`,
+              formData,
+              {
+                headers: formData.getHeaders(),
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity,
+                timeout: 30000, // 30 seconds timeout
+              }
+            );
+
+            aiData = aiResponse.data;
+          } catch (aiError) {
+            console.warn(`AI processing failed for user ${userId}:`, aiError.message);
+            // Continue with default values
           }
-        );
+        }
 
         const {
           summary,
@@ -86,16 +106,17 @@ exports.uploadDocument = async (req, res) => {
           metadata,
           translated_text,
           detected_language,
-        } = aiResponse.data;
+        } = aiData;
 
         const document = new Document({
           uploadedBy: userId,
-          department: fields.department || user.department,
+          department: user.department, // Use user's department directly
           fileUrl: destPath,
-          title: fields.title || file.originalFilename,
+          title: fields.title ? fields.title[0] : file.originalFilename, // Handle array format
           fileName: file.originalFilename,
           fileType: file.mimetype,
           fileSize: file.size,
+          category: fields.category ? fields.category[0] : 'General', // Handle array format
           summary,
           classification,
           metadata,
@@ -124,17 +145,23 @@ exports.uploadDocument = async (req, res) => {
           },
         });
       } catch (error) {
+        console.error(`User ${userId} - Processing error:`, error);
+        
+        // Clean up uploaded file on error
+        try {
+          if (fs.existsSync(destPath)) {
+            fs.unlinkSync(destPath);
+          }
+        } catch (cleanupError) {
+          console.error(`Failed to cleanup file ${destPath}:`, cleanupError);
+        }
+
         if (error.response) {
-          console.error(
-            `User ${userId} - AI server error:`,
-            error.response.data
-          );
           return res.status(500).json({
             error: "Error processing document with AI server",
             details: error.response.data,
           });
         }
-        console.error(`User ${userId} - Internal server error:`, error);
         res.status(500).json({ error: "Internal server error" });
       }
     });
