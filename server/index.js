@@ -13,7 +13,7 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const connectDB = require('./config/db');
-const quadrantClient = require('./utils/qdrantClient');
+const quadrantClient = require('./config/qdrantClient');
 connectDB();
 
 app.use('/api/admin', require('./routes/adminRoutes'));
