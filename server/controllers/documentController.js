@@ -198,8 +198,8 @@ exports.uploadDocument = async (req, res) => {
     console.error(`User ${userId} - Unexpected error:`, error);
     res.status(500).json({ error: "Internal server error" });
   }
-};
-
+}
+ 
 exports.getDocumentsByDepartment = async (req, res) => {
   try {
     const departmentId = req.params.departmentId;
