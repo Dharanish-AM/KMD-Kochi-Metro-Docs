@@ -96,7 +96,6 @@ exports.getDepartmentsUI = async (req, res) => {
     if (!departments) {
       return res.status(404).json({ message: "Departments not found" });
     }
-    console.log(departments)
     
     res.status(200).json(departments);
   } catch (error) {

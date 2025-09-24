@@ -6,9 +6,6 @@ const {
   getDocumentsByUser,
   deleteDocument,
   downloadDocument,
-  RAGSearchDocument,
-  DocumentPreview,
-  DownloadDocument
 } = require("../controllers/documentController");
 
 router.post("/upload", uploadDocument);
@@ -17,9 +14,9 @@ router.get("/documents-by-user/:userId", getDocumentsByUser);
 router.get("/download/:documentId", downloadDocument);
 router.get("/:documentId", getDocumentById);
 router.delete("/:documentId", deleteDocument);
-// TODO: Implement these functions in documentController.js
-router.get("/rag-search", RAGSearchDocument);
-router.get("/document-preview", DocumentPreview);
-router.get("/download-document", DownloadDocument);
+// TODO: Implement these functions in documentController.js if needed
+// router.get("/rag-search", RAGSearchDocument);
+// router.get("/document-preview", DocumentPreview);
+// router.get("/download-document", DownloadDocument);
 
 module.exports = router;

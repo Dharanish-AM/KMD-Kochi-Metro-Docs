@@ -9,6 +9,7 @@ const formidable = require("formidable");
 const mongoose = require("mongoose");
 const qdrant = require("../config/qdrantClient").client;
 const { v4: uuidv4 } = require("uuid");
+const KMRL_DEPARTMENTS = require("../constants/departments");
 
 exports.uploadDocument = async (req, res) => {
   const userId = req.query.userId;
@@ -53,7 +54,7 @@ exports.uploadDocument = async (req, res) => {
         /[^a-zA-Z0-9_\-.]/g,
         "_"
       );
-      const newFileName = `${Date.now()}_${safeName}`;
+      const newFileName = `${safeName}`;
       const destPath = path.join(uploadDir, newFileName);
 
       try {
@@ -91,15 +92,25 @@ exports.uploadDocument = async (req, res) => {
           embedding_vector, // 👈 ensure AI server includes this
         } = aiResponse.data;
 
-        const department = await Department.findOne({
-          name: fields.classification,
-        });
+        //print response from AI
+        // console.log(`User ${userId} - AI server response:`, aiResponse.data);
+
+        const departmentName =
+          typeof classification === "object"
+            ? classification.primary_department
+            : classification;
+
+        const department = await Department.findOne({ name: departmentName });
         if (!department) {
           console.warn(
-            `User ${userId} - Invalid department ID in classification: ${fields.classification}`
+            `User ${userId} - Invalid department classification: ${departmentName}`
           );
-          return res.status(400).json({ error: "Invalid department ID" });
+          return res
+            .status(400)
+            .json({ error: "Invalid department classification" });
         }
+
+        console.log(`${department.name} department matched for document.`);
 
         // 🔹 Save document in MongoDB
         const document = new Document({
@@ -111,7 +122,9 @@ exports.uploadDocument = async (req, res) => {
           fileType: file.mimetype,
           fileSize: file.size,
           summary,
-          classification,
+          classification: departmentName, // ensure string
+          classification_labels: classification?.labels || [],
+          classification_scores: classification?.scores || [],
           metadata,
           translated_text,
           detected_language,
@@ -228,6 +241,12 @@ exports.getDocumentById = async (req, res) => {
     const document = await Document.findById(documentId)
       .populate("uploadedBy", "name email")
       .populate("department", "name");
+
+    if (!document) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    res.status(200).json({ document });
 
     if (!document) {
       console.info(`No document found with ID: ${documentId}`);
@@ -385,11 +404,195 @@ exports.downloadDocument = async (req, res) => {
   }
 };
 
+
 exports.RAGSearchDocument = async (req, res) => {
+  try {
+    const { query, topK = 5 } = req.query;
+
+    console.log("🔹 RAG Search initiated.");
+    console.log("Query received:", query);
+    console.log("Top K:", topK);
+
+    if (!query || query.trim() === "") {
+      console.warn("⚠️ No query provided.");
+      return res.status(400).json({ error: "Search query is required" });
+    }
+
+    // Step 1: Get embedding vector from AI server
+    console.log("🔹 Fetching embedding vector from AI server...");
+    let embeddingVector;
+    try {
+      const aiResponse = await axios.post(
+        `${process.env.AI_SERVER_URL}/rag_search`,
+        { query },
+        { timeout: 60000 }
+      );
+      console.log("AI server response:", aiResponse.data);
+
+      embeddingVector = aiResponse.data.embedding_vector;
+      if (!embeddingVector || !Array.isArray(embeddingVector)) {
+        console.error(
+          "❌ Invalid embedding vector returned by AI server:",
+          embeddingVector
+        );
+        return res
+          .status(500)
+          .json({ error: "AI server did not return a valid embedding vector" });
+      }
+    } catch (err) {
+      console.error(
+        "❌ Failed to get embedding vector from AI server:",
+        err.message
+      );
+      return res
+        .status(500)
+        .json({ error: "Failed to get embedding vector from AI server" });
+    }
+
+    // Step 2: Search in Qdrant
+    console.log("🔹 Searching Qdrant collection 'documents'...");
+    let qdrantResults = [];
+    try {
+      const searchResponse = await qdrant.search("documents", {
+        vector: embeddingVector,
+        limit: Number(topK),
+        with_payload: true,
+      });
+      console.log("Raw Qdrant results:", searchResponse);
+      qdrantResults = searchResponse || [];
+    } catch (qErr) {
+      console.error("❌ Failed to search Qdrant:", qErr.message);
+      return res.status(500).json({
+        error: "Failed to search documents in Qdrant",
+        details: qErr.message,
+      });
+    }
+
+    // Step 3: Filter by dynamic similarity threshold
+    const MIN_SIMILARITY = 0.1; // include lower-score matches
+    const filteredResults = qdrantResults.filter(
+      (res) => res.score >= MIN_SIMILARITY && res.payload?.documentId
+    );
+    const documentIds = filteredResults.map((res) => res.payload.documentId);
+
+    console.log(
+      "Filtered document IDs (above dynamic threshold):",
+      documentIds
+    );
+    filteredResults.forEach((r) =>
+      console.log(`Document ${r.payload.documentId} score: ${r.score}`)
+    );
+
+    if (documentIds.length === 0) {
+      console.info(
+        "⚠️ No relevant documents found above similarity threshold."
+      );
+      return res
+        .status(200)
+        .json({ message: "No relevant documents found", query, results: [] });
+    }
+
+    // Step 4: Fetch full documents from MongoDB
+    console.log("🔹 Fetching documents from MongoDB...");
+    const documents = await Document.find({ _id: { $in: documentIds } })
+      .populate("uploadedBy", "name email")
+      .populate("department", "name");
+    console.log("Fetched documents from MongoDB:", documents);
+
+    // Step 5: Sort documents according to Qdrant search order
+    const sortedDocuments = documentIds.map((id) =>
+      documents.find((doc) => doc._id.toString() === id)
+    );
+    console.log("Sorted documents matching Qdrant order:", sortedDocuments);
+
+    // Step 6: Return results
+    return res.status(200).json({
+      message: "RAG search completed successfully",
+      query,
+      results: sortedDocuments,
+    });
+  } catch (error) {
+    console.error("❌ Internal RAG search error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 };
 
 exports.DocumentPreview = async (req, res) => {
+  try {
+    const { documentId } = req.query;
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ error: "Invalid document ID" });
+    }
+
+    const document = await Document.findById(documentId);
+    if (!document) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const filePath = document.fileUrl;
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found on server" });
+    }
+
+    // Determine file name and MIME type
+    const fileName = document.fileName || path.basename(filePath);
+    const fileExt = path.extname(filePath).toLowerCase();
+    let contentType = "application/octet-stream"; // default
+
+    if (fileExt === ".pdf") contentType = "application/pdf";
+    else if (fileExt === ".docx")
+      contentType =
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    else if (fileExt === ".doc") contentType = "application/msword";
+    else if (fileExt === ".txt") contentType = "text/plain";
+
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    res.setHeader("Content-Type", contentType);
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    fileStream.on("error", (err) => {
+      console.error(`❌ Error streaming document ${documentId} file:`, err);
+      res.status(500).end("Error serving file");
+    });
+  } catch (error) {
+    console.error("❌ Error fetching document preview:", error);
+    return res.status(500).json({ error: "Failed to fetch document preview" });
+  }
 };
 
 exports.DownloadDocument = async (req, res) => {
+  try {
+    const { documentId } = req.query;
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ error: "Invalid document ID" });
+    }
+
+    const document = await Document.findById(documentId);
+    if (!document) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const filePath = document.fileUrl;
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found on server" });
+    }
+
+    const fileName = document.fileName || path.basename(filePath);
+
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    fileStream.on("error", (err) => {
+      console.error(`❌ Error downloading document ${documentId}:`, err);
+      res.status(500).end("Error downloading file");
+    });
+  } catch (error) {
+    console.error("❌ Error handling document download:", error);
+    return res.status(500).json({ error: "Failed to download document" });
+  }
 };
