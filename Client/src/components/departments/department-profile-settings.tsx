@@ -37,8 +37,146 @@ interface DepartmentProfileSettingsProps {
 
 // Department theme configuration
 const departmentThemes = {
+  // KMRL Departments with new themes
+  "Operations & Maintenance": {
+    primary: "from-cyan-600 via-sky-700 to-blue-800",
+    secondary: "from-cyan-50 to-sky-50",
+    accent: "bg-cyan-500",
+    text: "text-cyan-600",
+    lightBg: "from-cyan-50 to-sky-100",
+    darkBg: "from-cyan-900/20 to-sky-800/20",
+    border: "border-cyan-200 dark:border-cyan-700"
+  },
+  "Engineering & Infrastructure": {
+    primary: "from-blue-600 via-blue-700 to-indigo-800",
+    secondary: "from-blue-50 to-indigo-50",
+    accent: "bg-blue-500",
+    text: "text-blue-600",
+    lightBg: "from-blue-50 to-blue-100",
+    darkBg: "from-blue-900/20 to-blue-800/20",
+    border: "border-blue-200 dark:border-blue-700"
+  },
+  "Electrical & Mechanical": {
+    primary: "from-orange-600 via-amber-700 to-yellow-800",
+    secondary: "from-orange-50 to-amber-50",
+    accent: "bg-orange-500",
+    text: "text-orange-600",
+    lightBg: "from-orange-50 to-amber-100",
+    darkBg: "from-orange-900/20 to-amber-800/20",
+    border: "border-orange-200 dark:border-orange-700"
+  },
+  "Finance & Accounts": {
+    primary: "from-yellow-600 via-amber-700 to-orange-800",
+    secondary: "from-yellow-50 to-amber-50",
+    accent: "bg-yellow-500",
+    text: "text-yellow-600",
+    lightBg: "from-yellow-50 to-amber-100",
+    darkBg: "from-yellow-900/20 to-amber-800/20",
+    border: "border-yellow-200 dark:border-yellow-700"
+  },
+  "Human Resources": {
+    primary: "from-emerald-600 via-green-700 to-teal-800",
+    secondary: "from-emerald-50 to-green-50",
+    accent: "bg-emerald-500",
+    text: "text-emerald-600",
+    lightBg: "from-emerald-50 to-green-100",
+    darkBg: "from-emerald-900/20 to-green-800/20",
+    border: "border-emerald-200 dark:border-emerald-700"
+  },
+  "Legal & Compliance": {
+    primary: "from-purple-600 via-violet-700 to-indigo-800",
+    secondary: "from-purple-50 to-violet-50",
+    accent: "bg-purple-500",
+    text: "text-purple-600",
+    lightBg: "from-purple-50 to-violet-100",
+    darkBg: "from-purple-900/20 to-violet-800/20",
+    border: "border-purple-200 dark:border-purple-700"
+  },
+  "Procurement & Contracts": {
+    primary: "from-teal-600 via-emerald-700 to-green-800",
+    secondary: "from-teal-50 to-emerald-50",
+    accent: "bg-teal-500",
+    text: "text-teal-600",
+    lightBg: "from-teal-50 to-emerald-100",
+    darkBg: "from-teal-900/20 to-emerald-800/20",
+    border: "border-teal-200 dark:border-teal-700"
+  },
+  "Corporate Communications": {
+    primary: "from-pink-600 via-rose-700 to-red-800",
+    secondary: "from-pink-50 to-rose-50",
+    accent: "bg-pink-500",
+    text: "text-pink-600",
+    lightBg: "from-pink-50 to-rose-100",
+    darkBg: "from-pink-900/20 to-rose-800/20",
+    border: "border-pink-200 dark:border-pink-700"
+  },
+  "Business Development": {
+    primary: "from-indigo-600 via-blue-700 to-cyan-800",
+    secondary: "from-indigo-50 to-blue-50",
+    accent: "bg-indigo-500",
+    text: "text-indigo-600",
+    lightBg: "from-indigo-50 to-blue-100",
+    darkBg: "from-indigo-900/20 to-blue-800/20",
+    border: "border-indigo-200 dark:border-indigo-700"
+  },
+  "Vigilance & Security": {
+    primary: "from-red-600 via-rose-700 to-pink-800",
+    secondary: "from-red-50 to-rose-50",
+    accent: "bg-red-500",
+    text: "text-red-600",
+    lightBg: "from-red-50 to-rose-100",
+    darkBg: "from-red-900/20 to-rose-800/20",
+    border: "border-red-200 dark:border-red-700"
+  },
+  "Information Technology & Systems": {
+    primary: "from-violet-600 via-purple-700 to-indigo-800",
+    secondary: "from-violet-50 to-purple-50",
+    accent: "bg-violet-500",
+    text: "text-violet-600",
+    lightBg: "from-violet-50 to-purple-100",
+    darkBg: "from-violet-900/20 to-purple-800/20",
+    border: "border-violet-200 dark:border-violet-700"
+  },
+  "Planning & Development": {
+    primary: "from-lime-600 via-green-700 to-emerald-800",
+    secondary: "from-lime-50 to-green-50",
+    accent: "bg-lime-500",
+    text: "text-lime-600",
+    lightBg: "from-lime-50 to-green-100",
+    darkBg: "from-lime-900/20 to-green-800/20",
+    border: "border-lime-200 dark:border-lime-700"
+  },
+  "Environment & Sustainability": {
+    primary: "from-green-600 via-emerald-700 to-teal-800",
+    secondary: "from-green-50 to-emerald-50",
+    accent: "bg-green-500",
+    text: "text-green-600",
+    lightBg: "from-green-50 to-emerald-100",
+    darkBg: "from-green-900/20 to-emerald-800/20",
+    border: "border-green-200 dark:border-green-700"
+  },
+  "Customer Relations & Services": {
+    primary: "from-sky-600 via-blue-700 to-indigo-800",
+    secondary: "from-sky-50 to-blue-50",
+    accent: "bg-sky-500",
+    text: "text-sky-600",
+    lightBg: "from-sky-50 to-blue-100",
+    darkBg: "from-sky-900/20 to-blue-800/20",
+    border: "border-sky-200 dark:border-sky-700"
+  },
+  "Project Management": {
+    primary: "from-orange-600 via-amber-700 to-yellow-800",
+    secondary: "from-orange-50 to-amber-50",
+    accent: "bg-orange-500",
+    text: "text-orange-600",
+    lightBg: "from-orange-50 to-amber-100",
+    darkBg: "from-orange-900/20 to-amber-800/20",
+    border: "border-orange-200 dark:border-orange-700"
+  },
+  // Legacy department mappings (for backward compatibility)
   "Engineering": {
     primary: "from-blue-600 via-blue-700 to-indigo-800",
+    secondary: "from-blue-50 to-indigo-50",
     accent: "bg-blue-500",
     text: "text-blue-600",
     lightBg: "from-blue-50 to-blue-100",
@@ -47,6 +185,7 @@ const departmentThemes = {
   },
   "HR": {
     primary: "from-emerald-600 via-green-700 to-teal-800",
+    secondary: "from-emerald-50 to-green-50",
     accent: "bg-emerald-500",
     text: "text-emerald-600",
     lightBg: "from-emerald-50 to-green-100",
@@ -55,6 +194,7 @@ const departmentThemes = {
   },
   "Legal": {
     primary: "from-purple-600 via-violet-700 to-indigo-800",
+    secondary: "from-purple-50 to-violet-50",
     accent: "bg-purple-500",
     text: "text-purple-600",
     lightBg: "from-purple-50 to-violet-100",
@@ -63,6 +203,7 @@ const departmentThemes = {
   },
   "Finance": {
     primary: "from-amber-600 via-yellow-700 to-orange-800",
+    secondary: "from-amber-50 to-yellow-50",
     accent: "bg-amber-500",
     text: "text-amber-600",
     lightBg: "from-amber-50 to-yellow-100",
@@ -71,6 +212,7 @@ const departmentThemes = {
   },
   "Safety": {
     primary: "from-red-600 via-rose-700 to-pink-800",
+    secondary: "from-red-50 to-rose-50",
     accent: "bg-red-500",
     text: "text-red-600",
     lightBg: "from-red-50 to-rose-100",
@@ -79,6 +221,7 @@ const departmentThemes = {
   },
   "Operations": {
     primary: "from-cyan-600 via-sky-700 to-blue-800",
+    secondary: "from-cyan-50 to-sky-50",
     accent: "bg-cyan-500",
     text: "text-cyan-600",
     lightBg: "from-cyan-50 to-sky-100",
@@ -87,6 +230,7 @@ const departmentThemes = {
   },
   "Procurement": {
     primary: "from-teal-600 via-emerald-700 to-green-800",
+    secondary: "from-teal-50 to-emerald-50",
     accent: "bg-teal-500",
     text: "text-teal-600",
     lightBg: "from-teal-50 to-emerald-100",
@@ -95,6 +239,7 @@ const departmentThemes = {
   },
   "Admin": {
     primary: "from-slate-600 via-gray-700 to-zinc-800",
+    secondary: "from-slate-50 to-gray-50",
     accent: "bg-slate-500",
     text: "text-slate-600",
     lightBg: "from-slate-50 to-gray-100",
@@ -103,6 +248,7 @@ const departmentThemes = {
   },
   "Maintenance": {
     primary: "from-orange-600 via-red-700 to-rose-800",
+    secondary: "from-orange-50 to-red-50",
     accent: "bg-orange-500",
     text: "text-orange-600",
     lightBg: "from-orange-50 to-red-100",
@@ -111,6 +257,7 @@ const departmentThemes = {
   },
   "Security": {
     primary: "from-indigo-600 via-purple-700 to-violet-800",
+    secondary: "from-indigo-50 to-purple-50",
     accent: "bg-indigo-500",
     text: "text-indigo-600",
     lightBg: "from-indigo-50 to-purple-100",

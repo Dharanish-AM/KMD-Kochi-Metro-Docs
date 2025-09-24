@@ -11,10 +11,12 @@ import {
   X,
   Lightbulb,
   Bell,
-  UserCircle
+  UserCircle,
+  LogOut
 } from "lucide-react"
 import { useState } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
+import { clearAuthData } from "@/Utils/Auth/token"
 
 const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
@@ -36,6 +38,11 @@ export function Sidebar() {
     if (path === "/" && location.pathname === "/") return true
     if (path !== "/" && location.pathname.startsWith(path)) return true
     return false
+  }
+
+  const handleLogout = () => {
+    clearAuthData();
+    navigate('/login');
   }
 
   return (
@@ -93,14 +100,36 @@ export function Sidebar() {
           </ul>
         </nav>
 
+        {isCollapsed && (
+          <div className="absolute bottom-4 left-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              className="h-12 w-12 hover:bg-destructive/10 hover:text-destructive"
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         {!isCollapsed && (
           <div className="absolute bottom-4 left-4 right-4">
-            <div className="rounded-lg bg-primary-light p-4">
-              <Upload className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-semibold text-sm text-foreground mb-1">Quick Upload</h3>
-              <p className="text-xs text-muted-foreground mb-3">Drag and drop documents here</p>
-              <Button size="sm" variant="outline" className="w-full">
-                Choose Files
+            <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
+              <LogOut className="h-8 w-8 text-destructive mb-2" />
+              <h3 className="font-semibold text-sm text-foreground mb-1">Sign Out</h3>
+              <p className="text-xs text-muted-foreground mb-3">Logout from your account</p>
+              <Button 
+                size="sm" 
+                variant="destructive" 
+                className="w-full"
+                onClick={() => {
+                  clearAuthData();
+                  navigate('/login');
+                }}
+              >
+                Logout
               </Button>
             </div>
           </div>

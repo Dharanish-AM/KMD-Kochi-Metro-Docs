@@ -30,6 +30,7 @@ interface DepartmentSidebarLayoutProps {
   userRole: string
   activeSection: string
   onSectionChange: (section: string) => void
+  fileCount?: number // Optional file count for dynamic badge
 }
 
 const departmentIcons = {
@@ -281,7 +282,8 @@ export const DepartmentSidebarLayout = ({
   userName, 
   userRole, 
   activeSection, 
-  onSectionChange 
+  onSectionChange,
+  fileCount = 0
 }: DepartmentSidebarLayoutProps) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
@@ -309,15 +311,15 @@ export const DepartmentSidebarLayout = ({
       label: "File History",
       icon: FileText,
       description: "Track Submissions",
-      badge: "24"
+      badge: fileCount > 0 ? fileCount.toString() : null
     },
-    {
-      id: "accepted",
-      label: "Approved Files",
-      icon: CheckCircle,
-      description: "Accepted Documents",
-      badge: null
-    }
+    // {
+    //   id: "accepted",
+    //   label: "Approved Files",
+    //   icon: CheckCircle,
+    //   description: "Accepted Documents",
+    //   badge: null
+    // }
   ]
 
   return (
@@ -497,55 +499,64 @@ export const DepartmentSidebarLayout = ({
               </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* Department Info Panel */}
             <div className="border-t border-gray-200/50 dark:border-gray-700/50 pt-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Quick Stats
+                  Department Info
                 </h3>
-                <TrendingUp className="h-4 w-4 text-gray-400" />
+                <Building2 className="h-4 w-4 text-gray-400" />
               </div>
               
-              <div className="grid grid-cols-1 gap-3">
+              {/* Department Quick Info */}
+              <div className="space-y-4">
                 <div className={cn(
-                  "relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:shadow-lg",
+                  "relative overflow-hidden rounded-xl p-4 transition-all duration-300",
                   `bg-gradient-to-br ${theme.secondary} border border-gray-200/50 dark:border-gray-700/50`
                 )}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className={cn("text-2xl font-bold", theme.text)}>24</div>
-                      <div className="text-xs font-medium text-gray-600 dark:text-gray-400">Pending Reviews</div>
+                  <div className="flex items-center space-x-3">
+                    <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", theme.accent)}>
+                      <span className="text-white text-lg">{departmentInfo.icon}</span>
                     </div>
-                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", theme.accent)}>
-                      <FileText className="h-4 w-4 text-white" />
+                    <div className="flex-1">
+                      <div className={cn("text-sm font-semibold", theme.text)}>
+                        {department}
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        Document Management System
+                      </div>
                     </div>
                   </div>
-                  <div className="absolute top-0 right-0 w-20 h-20 opacity-10">
+                  <div className="absolute top-0 right-0 w-16 h-16 opacity-5">
                     <div className={cn("w-full h-full rounded-full", theme.accent)}></div>
                   </div>
                 </div>
                 
-                <div className="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 border border-emerald-200/50 dark:border-emerald-700/50 rounded-xl p-4 transition-all duration-300 hover:shadow-lg relative overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">156</div>
-                      <div className="text-xs font-medium text-gray-600 dark:text-gray-400">Total Approved</div>
+                {/* Current User Role */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200/50 dark:border-blue-700/50 rounded-xl p-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                      <Users className="h-4 w-4 text-white" />
                     </div>
-                    <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
-                      <CheckCircle className="h-4 w-4 text-white" />
+                    <div>
+                      <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                        {userRole}
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        Current Role
+                      </div>
                     </div>
                   </div>
-                  <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500 rounded-full opacity-10"></div>
                 </div>
-              </div>
-              
-              {/* Department Status */}
-              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Department Status</span>
-                  <div className="flex items-center space-x-1">
-                    <Dot className="h-4 w-4 text-green-500 animate-pulse" />
-                    <span className="text-green-600 dark:text-green-400 font-semibold">Active</span>
+                
+                {/* Department Status */}
+                <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">Department Status</span>
+                    <div className="flex items-center space-x-1">
+                      <Dot className="h-4 w-4 text-green-500 animate-pulse" />
+                      <span className="text-green-600 dark:text-green-400 font-semibold">Active</span>
+                    </div>
                   </div>
                 </div>
               </div>

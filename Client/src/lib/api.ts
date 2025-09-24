@@ -177,3 +177,93 @@ export function transformDepartmentData(apiDepartment: DepartmentFromAPI): {
     slug: createSlug(apiDepartment.name)
   };
 }
+
+// Document API functions
+export interface DocumentFromAPI {
+  _id: string;
+  title: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileUrl: string;
+  category: string;
+  summary: string;
+  classification: string;
+  metadata: object;
+  translated_text: string | null;
+  detected_language: string;
+  uploadedBy: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  department: {
+    _id: string;
+    name: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const documentAPI = {
+  // Get documents by user ID
+  getDocumentsByUser: async (userId: string): Promise<DocumentFromAPI[]> => {
+    try {
+      const response = await axiosInstance.get(`/api/documents/documents-by-user/${userId}`);
+      return response.data.documents;
+    } catch (error) {
+      console.error('Failed to fetch user documents:', error);
+      throw error;
+    }
+  },
+
+  // Get documents by department ID
+  getDocumentsByDepartment: async (departmentId: string): Promise<DocumentFromAPI[]> => {
+    try {
+      const response = await axiosInstance.get(`/api/documents/documents-by-department/${departmentId}`);
+      return response.data.documents;
+    } catch (error) {
+      console.error('Failed to fetch department documents:', error);
+      throw error;
+    }
+  },
+
+  // Get specific document by ID
+  getDocumentById: async (documentId: string): Promise<DocumentFromAPI> => {
+    try {
+      const response = await axiosInstance.get(`/api/documents/${documentId}`);
+      return response.data.document;
+    } catch (error) {
+      console.error('Failed to fetch document:', error);
+      throw error;
+    }
+  },
+
+  // Delete document
+  deleteDocument: async (documentId: string, userId: string): Promise<void> => {
+    try {
+      await axiosInstance.delete(`/api/documents/${documentId}?userId=${userId}`);
+    } catch (error) {
+      console.error('Failed to delete document:', error);
+      throw error;
+    }
+  },
+
+  // Download document
+  downloadDocument: async (documentId: string): Promise<string> => {
+    try {
+      const response = await axiosInstance.get(`/api/documents/download/${documentId}`, {
+        responseType: 'blob'
+      });
+      
+      // Create a blob URL for the download
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      return url;
+    } catch (error) {
+      console.error('Failed to download document:', error);
+      throw error;
+    }
+  },
+
+};

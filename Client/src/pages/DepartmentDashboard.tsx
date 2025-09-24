@@ -26,6 +26,7 @@ import { DepartmentStats } from "@/components/departments/department-stats"
 import { DepartmentSidebarLayout } from "@/components/layout/DepartmentSidebarLayout"
 import { DepartmentProfileSettings } from "@/components/departments/department-profile-settings"
 import { DepartmentNotifications } from "@/components/departments/department-notifications"
+import { departmentAPI, documentAPI } from "@/lib/api"
 import axiosInstance from "@/Utils/Auth/axiosInstance"
 interface DepartmentDashboardProps {
   department: string
@@ -531,8 +532,73 @@ const departmentData: Record<string, DepartmentInfo> = {
 
 const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
   const [activeSection, setActiveSection] = useState("overview")
+  const [departmentId, setDepartmentId] = useState<string | null>(null)
+  const [fileCount, setFileCount] = useState(0)
   
-  // Get department info with fallback
+  // Fetch departmentId based on department name
+  useEffect(() => {
+    const fetchDepartmentId = async () => {
+      try {
+        // Fetch all departments and find the one matching the current department name
+        const departments = await departmentAPI.getDepartments()
+        const foundDept = departments.find(d => d.name === department)
+        setDepartmentId(foundDept?._id || null)
+      } catch (error) {
+        console.error("Failed to fetch department ID:", error)
+        // Fallback: use a temporary mapping while the API might be unavailable
+        const departmentNameToIdMap: Record<string, string> = {
+          "Operations & Maintenance": "operations-maintenance-id",
+          "Engineering & Infrastructure": "engineering-infrastructure-id",
+          "Electrical & Mechanical": "electrical-mechanical-id",
+          "Finance & Accounts": "finance-accounts-id",
+          "Human Resources": "human-resources-id",
+          "Legal & Compliance": "legal-compliance-id",
+          "Procurement & Contracts": "procurement-contracts-id",
+          "Corporate Communications": "corporate-communications-id",
+          "Business Development": "business-development-id",
+          "Vigilance & Security": "vigilance-security-id",
+          "Information Technology & Systems": "it-systems-id",
+          "Planning & Development": "planning-development-id",
+          "Environment & Sustainability": "environment-sustainability-id",
+          "Customer Relations & Services": "customer-services-id",
+          "Project Management": "project-management-id"
+        }
+        setDepartmentId(departmentNameToIdMap[department] || null)
+      }
+    }
+
+    fetchDepartmentId()
+  }, [department])
+
+  // Fetch file count for the sidebar badge
+  useEffect(() => {
+    const fetchFileCount = async () => {
+      if (!departmentId) return
+
+      try {
+        const documents = await documentAPI.getDocumentsByDepartment(departmentId)
+        setFileCount(documents.length)
+      } catch (error) {
+        console.error("Failed to fetch file count:", error)
+        setFileCount(0)
+      }
+    }
+
+    fetchFileCount()
+  }, [departmentId])
+
+  // Function to refresh file count (can be called by child components)
+  const refreshFileCount = async () => {
+    if (!departmentId) return
+
+    try {
+      const documents = await documentAPI.getDocumentsByDepartment(departmentId)
+      setFileCount(documents.length)
+    } catch (error) {
+      console.error("Failed to refresh file count:", error)
+    }
+  }
+ 
   const deptInfo = departmentData[department] || departmentData["Human Resources"] || {
     name: department,
     description: "Department documentation and file management",
@@ -582,9 +648,9 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
       case "upload":
         return <DepartmentFileUpload department={department} />
       case "history":
-        return <DepartmentFileHistory department={department} />
+        return departmentId ? <DepartmentFileHistory department={department} departmentId={departmentId} onFileCountChange={refreshFileCount} /> : <div>Loading...</div>
       case "accepted":
-        return <DepartmentFileHistory department={department} filter="accepted" />
+        return departmentId ? <DepartmentFileHistory department={department} departmentId={departmentId} filter="accepted" onFileCountChange={refreshFileCount} /> : <div>Loading...</div>
       case "profile":
         return <DepartmentProfileSettings department={department} userName="John Doe" userRole="Document Manager" />
       case "notifications":
@@ -601,6 +667,7 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
       userRole="Document Manager"
       activeSection={activeSection}
       onSectionChange={setActiveSection}
+      fileCount={fileCount}
     >
       <div className="max-w-7xl mx-auto">
         {renderContent()}

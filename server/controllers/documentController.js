@@ -111,7 +111,7 @@ exports.uploadDocument = async (req, res) => {
         const document = new Document({
           uploadedBy: userId,
           department: user.department, // Use user's department directly
-          fileUrl: destPath,
+          fileUrl: `/uploads/${newFileName}`,
           title: fields.title ? fields.title[0] : file.originalFilename, // Handle array format
           fileName: file.originalFilename,
           fileType: file.mimetype,
@@ -201,6 +201,170 @@ exports.getDocumentsByDepartment = async (req, res) => {
   }
 };
 
-exports.getDocumentById = async (req, res) => {};
+exports.getDocumentById = async (req, res) => {
+  try {
+    const documentId = req.params.documentId;
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      console.warn(`Invalid documentId provided: ${documentId}`);
+      return res.status(400).json({ error: "Invalid document ID" });
+    }
 
-exports.deleteDocument = async (req, res) => {};
+    const document = await Document.findById(documentId)
+      .populate("uploadedBy", "name email")
+      .populate("department", "name");
+
+    if (!document) {
+      console.info(`No document found with ID: ${documentId}`);
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    res.status(200).json({ document });
+  } catch (error) {
+    console.error(`Error fetching document with ID ${req.params.documentId}:`, error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+exports.getDocumentsByUser = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.warn(`Invalid userId provided: ${userId}`);
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+
+    const documents = await Document.find({ uploadedBy: userId })
+      .populate("uploadedBy", "name email")
+      .populate("department", "name")
+      .sort({ createdAt: -1 });
+
+    if (!documents || documents.length === 0) {
+      console.info(`No documents found for userId: ${userId}`);
+      return res.status(200).json({
+        documents: [],
+        message: "No documents found for this user",
+      });
+    }
+
+    res.status(200).json({ documents });
+  } catch (error) {
+    console.error(`Error fetching documents for userId ${req.params.userId}:`, error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+exports.deleteDocument = async (req, res) => {
+  try {
+    const documentId = req.params.documentId;
+    const userId = req.query.userId; // Get userId from query params
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized - User ID required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      console.warn(`Invalid documentId provided: ${documentId}`);
+      return res.status(400).json({ error: "Invalid document ID" });
+    }
+
+    const document = await Document.findById(documentId);
+    if (!document) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    // Check if the user is the owner of the document
+    if (document.uploadedBy.toString() !== userId) {
+      return res.status(403).json({ error: "Forbidden - You can only delete your own documents" });
+    }
+
+    // Remove file from filesystem
+    if (document.fileUrl) {
+      // Handle both relative and absolute paths
+      const filePath = document.fileUrl.startsWith('/uploads/') 
+        ? path.join(__dirname, '..', document.fileUrl)
+        : document.fileUrl;
+      
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+          console.log(`File deleted: ${filePath}`);
+        } catch (fileError) {
+          console.error(`Error deleting file ${filePath}:`, fileError);
+          // Continue with database deletion even if file deletion fails
+        }
+      }
+    }
+
+    // Remove document reference from department
+    if (document.department) {
+      await Department.findByIdAndUpdate(
+        document.department,
+        { $pull: { documents: documentId } }
+      );
+    }
+
+    // Delete the document from database
+    await Document.findByIdAndDelete(documentId);
+
+    res.status(200).json({ 
+      message: "Document deleted successfully",
+      deletedDocument: {
+        id: document._id,
+        title: document.title,
+        fileName: document.fileName
+      }
+    });
+  } catch (error) {
+    console.error(`Error deleting document with ID ${req.params.documentId}:`, error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+exports.downloadDocument = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      return res.status(400).json({ error: "Invalid document ID" });
+    }
+
+    const document = await Document.findById(documentId);
+    if (!document) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    // Determine the actual file path
+    let filePath;
+    if (document.fileUrl.startsWith('/uploads/')) {
+      // New format: relative path
+      filePath = path.join(__dirname, '..', document.fileUrl);
+    } else {
+      // Old format: absolute path
+      filePath = document.fileUrl;
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found on server" });
+    }
+
+    // Set appropriate headers for download
+    res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
+    res.setHeader('Content-Type', document.fileType || 'application/octet-stream');
+
+    // Create read stream and pipe to response
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (error) => {
+      console.error('Error streaming file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Error downloading file' });
+      }
+    });
+
+  } catch (error) {
+    console.error(`Error downloading document with ID ${req.params.documentId}:`, error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
