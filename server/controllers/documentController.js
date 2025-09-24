@@ -9,6 +9,7 @@ const formidable = require("formidable");
 const mongoose = require("mongoose");
 const qdrant = require("../config/qdrantClient").client;
 const { v4: uuidv4 } = require("uuid");
+const KMRL_DEPARTMENTS = require("../constants/departments");
 
 exports.uploadDocument = async (req, res) => {
   const userId = req.query.userId;
@@ -53,7 +54,7 @@ exports.uploadDocument = async (req, res) => {
         /[^a-zA-Z0-9_\-.]/g,
         "_"
       );
-      const newFileName = `${Date.now()}_${safeName}`;
+      const newFileName = `${safeName}`;
       const destPath = path.join(uploadDir, newFileName);
 
       try {
@@ -91,15 +92,25 @@ exports.uploadDocument = async (req, res) => {
           embedding_vector, // 👈 ensure AI server includes this
         } = aiResponse.data;
 
-        const department = await Department.findOne({
-          name: fields.classification,
-        });
+        //print response from AI
+        // console.log(`User ${userId} - AI server response:`, aiResponse.data);
+
+        const departmentName =
+          typeof classification === "object"
+            ? classification.primary_department
+            : classification;
+
+        const department = await Department.findOne({ name: departmentName });
         if (!department) {
           console.warn(
-            `User ${userId} - Invalid department ID in classification: ${fields.classification}`
+            `User ${userId} - Invalid department classification: ${departmentName}`
           );
-          return res.status(400).json({ error: "Invalid department ID" });
+          return res
+            .status(400)
+            .json({ error: "Invalid department classification" });
         }
+
+        console.log(`${department.name} department matched for document.`);
 
         // 🔹 Save document in MongoDB
         const document = new Document({
@@ -111,7 +122,9 @@ exports.uploadDocument = async (req, res) => {
           fileType: file.mimetype,
           fileSize: file.size,
           summary,
-          classification,
+          classification: departmentName, // ensure string
+          classification_labels: classification?.labels || [],
+          classification_scores: classification?.scores || [],
           metadata,
           translated_text,
           detected_language,
@@ -280,14 +293,20 @@ exports.RAGSearchDocument = async (req, res) => {
       });
     }
 
-    // Step 3: Filter by similarity threshold
-    const SIMILARITY_THRESHOLD = 0.4;
-    const documentIds = qdrantResults
-      .filter((res) => res.score >= SIMILARITY_THRESHOLD)
-      .map((res) => res.payload?.documentId)
-      .filter(Boolean);
+    // Step 3: Filter by dynamic similarity threshold
+    const MIN_SIMILARITY = 0.1; // include lower-score matches
+    const filteredResults = qdrantResults.filter(
+      (res) => res.score >= MIN_SIMILARITY && res.payload?.documentId
+    );
+    const documentIds = filteredResults.map((res) => res.payload.documentId);
 
-    console.log("Filtered document IDs (above threshold):", documentIds);
+    console.log(
+      "Filtered document IDs (above dynamic threshold):",
+      documentIds
+    );
+    filteredResults.forEach((r) =>
+      console.log(`Document ${r.payload.documentId} score: ${r.score}`)
+    );
 
     if (documentIds.length === 0) {
       console.info(

@@ -46,9 +46,6 @@ const DocumentSchema = new Schema({
   summary: {
     type: String,
   },
-  classification: {
-    type: String,
-  },
   fileName: {
     type: String,
     required: true,
@@ -58,10 +55,6 @@ const DocumentSchema = new Schema({
   },
   fileSize: {
     type: Number,
-  },
-  category: {
-    type: String,
-    default: 'General',
   },
   detected_language: {
     type: String,
