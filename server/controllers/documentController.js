@@ -91,10 +91,20 @@ exports.uploadDocument = async (req, res) => {
           embedding_vector, // 👈 ensure AI server includes this
         } = aiResponse.data;
 
+        const department = await Department.findOne({
+          name: fields.classification,
+        });
+        if (!department) {
+          console.warn(
+            `User ${userId} - Invalid department ID in classification: ${fields.classification}`
+          );
+          return res.status(400).json({ error: "Invalid department ID" });
+        }
+
         // 🔹 Save document in MongoDB
         const document = new Document({
           uploadedBy: userId,
-          department: fields.department || user.department,
+          department: department._id,
           fileUrl: destPath,
           title: fields.title || file.originalFilename,
           fileName: file.originalFilename,
