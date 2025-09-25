@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { 
   LayoutDashboard, 
   Building2, 
-  Upload, 
+  MessageSquare, 
   FileText, 
   Users, 
   Settings,
@@ -22,12 +22,22 @@ const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { id: "departments", label: "Departments", icon: Building2, path: "/departments" },
   { id: "documents", label: "Documents", icon: FileText, path: "/documents" },
-  { id: "important-points", label: "Important Points", icon: Lightbulb, path: "/important-points" },
+  { id: "chat-assistant", label: "Chat Assistant", icon: MessageSquare, path: "/chat-assistant" },
   { id: "users", label: "Users", icon: Users, path: "/users" },
   { id: "notifications", label: "Notifications", icon: Bell, path: "/notifications" },
   { id: "profile", label: "Profile", icon: UserCircle, path: "/profile" },
   { id: "settings", label: "Settings", icon: Settings, path: "/settings" }
 ]
+
+// Special featured item - Important Points
+const featuredItem = {
+  id: "important-points", 
+  label: "Important Points", 
+  icon: Lightbulb, 
+  path: "/important-points",
+  isNew: true,
+  description: "AI-powered insights"
+}
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false) // Start expanded by default

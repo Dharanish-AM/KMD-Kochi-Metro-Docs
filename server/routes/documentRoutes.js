@@ -20,11 +20,13 @@ router.delete("/:documentId", deleteDocument);
 const { 
   RAGSearchDocument, 
   DocumentPreview, 
-  DownloadDocument 
+  DownloadDocument,
+  chatAssistant
 } = require("../controllers/documentController");
 
 router.get("/rag-search", RAGSearchDocument);
 router.get("/document-preview", DocumentPreview);
 router.get("/download-document", DownloadDocument);
+router.post("/chat-assistant", chatAssistant);
 
 module.exports = router;
