@@ -84,7 +84,7 @@ async def process_file(file: UploadFile):
 
 
 # RAG search endpoint
-from pydantic import BaseModel
+from pydantic import BaseModel # type: ignore
 
 class RAGSearchRequest(BaseModel):
     query: str

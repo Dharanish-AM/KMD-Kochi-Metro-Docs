@@ -48,8 +48,8 @@ def translate_to_english(text):
 
 
 # Test
-# text = "ഞാൻ ഇന്ന് പുസ്തകം വായിച്ചു."
+text = "ഹായ്, സുഖമാണോ?"
 
-# translated_text = translate_to_english(text)
-# print("Original:", text)
-# print("Translated:", translated_text)
+translated_text = translate_to_english(text)
+print("Original:", text)
+print("Translated:", translated_text)

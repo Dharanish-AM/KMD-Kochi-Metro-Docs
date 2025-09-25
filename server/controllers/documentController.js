@@ -198,8 +198,8 @@ exports.uploadDocument = async (req, res) => {
     console.error(`User ${userId} - Unexpected error:`, error);
     res.status(500).json({ error: "Internal server error" });
   }
-}
- 
+};
+
 exports.getDocumentsByDepartment = async (req, res) => {
   try {
     const departmentId = req.params.departmentId;
@@ -255,7 +255,10 @@ exports.getDocumentById = async (req, res) => {
 
     res.status(200).json({ document });
   } catch (error) {
-    console.error(`Error fetching document with ID ${req.params.documentId}:`, error);
+    console.error(
+      `Error fetching document with ID ${req.params.documentId}:`,
+      error
+    );
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -283,7 +286,10 @@ exports.getDocumentsByUser = async (req, res) => {
 
     res.status(200).json({ documents });
   } catch (error) {
-    console.error(`Error fetching documents for userId ${req.params.userId}:`, error);
+    console.error(
+      `Error fetching documents for userId ${req.params.userId}:`,
+      error
+    );
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -309,16 +315,18 @@ exports.deleteDocument = async (req, res) => {
 
     // Check if the user is the owner of the document
     if (document.uploadedBy.toString() !== userId) {
-      return res.status(403).json({ error: "Forbidden - You can only delete your own documents" });
+      return res
+        .status(403)
+        .json({ error: "Forbidden - You can only delete your own documents" });
     }
 
     // Remove file from filesystem
     if (document.fileUrl) {
       // Handle both relative and absolute paths
-      const filePath = document.fileUrl.startsWith('/uploads/') 
-        ? path.join(__dirname, '..', document.fileUrl)
+      const filePath = document.fileUrl.startsWith("/uploads/")
+        ? path.join(__dirname, "..", document.fileUrl)
         : document.fileUrl;
-      
+
       if (fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);
@@ -332,25 +340,27 @@ exports.deleteDocument = async (req, res) => {
 
     // Remove document reference from department
     if (document.department) {
-      await Department.findByIdAndUpdate(
-        document.department,
-        { $pull: { documents: documentId } }
-      );
+      await Department.findByIdAndUpdate(document.department, {
+        $pull: { documents: documentId },
+      });
     }
 
     // Delete the document from database
     await Document.findByIdAndDelete(documentId);
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: "Document deleted successfully",
       deletedDocument: {
         id: document._id,
         title: document.title,
-        fileName: document.fileName
-      }
+        fileName: document.fileName,
+      },
     });
   } catch (error) {
-    console.error(`Error deleting document with ID ${req.params.documentId}:`, error);
+    console.error(
+      `Error deleting document with ID ${req.params.documentId}:`,
+      error
+    );
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -370,9 +380,9 @@ exports.downloadDocument = async (req, res) => {
 
     // Determine the actual file path
     let filePath;
-    if (document.fileUrl.startsWith('/uploads/')) {
+    if (document.fileUrl.startsWith("/uploads/")) {
       // New format: relative path
-      filePath = path.join(__dirname, '..', document.fileUrl);
+      filePath = path.join(__dirname, "..", document.fileUrl);
     } else {
       // Old format: absolute path
       filePath = document.fileUrl;
@@ -384,26 +394,33 @@ exports.downloadDocument = async (req, res) => {
     }
 
     // Set appropriate headers for download
-    res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
-    res.setHeader('Content-Type', document.fileType || 'application/octet-stream');
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${document.fileName}"`
+    );
+    res.setHeader(
+      "Content-Type",
+      document.fileType || "application/octet-stream"
+    );
 
     // Create read stream and pipe to response
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
 
-    fileStream.on('error', (error) => {
-      console.error('Error streaming file:', error);
+    fileStream.on("error", (error) => {
+      console.error("Error streaming file:", error);
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Error downloading file' });
+        res.status(500).json({ error: "Error downloading file" });
       }
     });
-
   } catch (error) {
-    console.error(`Error downloading document with ID ${req.params.documentId}:`, error);
+    console.error(
+      `Error downloading document with ID ${req.params.documentId}:`,
+      error
+    );
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
 
 exports.RAGSearchDocument = async (req, res) => {
   try {
