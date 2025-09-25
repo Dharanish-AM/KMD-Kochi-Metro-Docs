@@ -14,13 +14,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
     return <Navigate to="/login" replace />;
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  // if (!isAuthenticated) {
+  //   return <Navigate to="/login" replace />;
+  // }
 
-  if (adminOnly && !isAdmin) {
-    return <Navigate to="/login" replace />;
-  }
+  // if (adminOnly && !isAdmin) {
+  //   return <Navigate to="/login" replace />;
+  // }
 
   return <>{children}</>;
 };

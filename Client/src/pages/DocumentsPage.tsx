@@ -4,67 +4,158 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Search, Filter, Download, Upload, Eye } from "lucide-react"
+import { FileText, Search, Filter, Download, Upload, Eye, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
+import axiosInstance from "@/Utils/Auth/axiosInstance"
+import { useState, useEffect, useCallback } from "react"
+import { useToast } from "@/hooks/use-toast"
+// Document interface based on backend schema
+interface Document {
+  _id: string;
+  title: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileUrl: string;
+  summary?: string;
+  classification: string;
+  classification_labels?: string[];
+  classification_scores?: number[];
+  metadata?: any;
+  translated_text?: string;
+  detected_language?: string;
+  uploadedBy: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  department: {
+    _id: string;
+    name: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
 
-const mockDocuments = [
-  {
-    id: "1",
-    name: "Metro Safety Guidelines 2024",
-    department: "Safety",
-    type: "PDF",
-    size: "2.4 MB",
-    uploadDate: "2024-09-10",
-    lastModified: "2024-09-11",
-    status: "approved",
-    version: "v2.1"
-  },
-  {
-    id: "2",
-    name: "Engineering Standards Manual",
-    department: "Engineering",
-    type: "PDF",
-    size: "15.7 MB",
-    uploadDate: "2024-09-08",
-    lastModified: "2024-09-09",
-    status: "under_review",
-    version: "v1.3"
-  },
-  {
-    id: "3",
-    name: "HR Policy Document",
-    department: "HR",
-    type: "DOCX",
-    size: "1.2 MB",
-    uploadDate: "2024-09-07",
-    lastModified: "2024-09-07",
-    status: "approved",
-    version: "v3.0"
-  },
-  {
-    id: "4",
-    name: "Financial Audit Report Q2",
-    department: "Finance",
-    type: "PDF",
-    size: "8.9 MB",
-    uploadDate: "2024-09-05",
-    lastModified: "2024-09-06",
-    status: "pending",
-    version: "v1.0"
-  },
-  {
-    id: "5",
-    name: "Operations Manual",
-    department: "Operations",
-    type: "PDF",
-    size: "12.3 MB",
-    uploadDate: "2024-09-03",
-    lastModified: "2024-09-04",
-    status: "approved",
-    version: "v2.5"
-  }
-]
+interface DocumentsResponse {
+  documents: Document[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalDocuments: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
 
 export function DocumentsPage() {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<DocumentsResponse['pagination'] | null>(null);
+  const { toast } = useToast();
+
+  // Fetch documents from API
+  const fetchDocuments = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: "10",
+        ...(searchTerm && { search: searchTerm }),
+        ...(selectedDepartment && { department: selectedDepartment })
+      });
+
+      const response = await axiosInstance.get(`/api/documents/all?${params}`);
+      
+      if (response.data) {
+        setDocuments(response.data.documents || []);
+        setPagination(response.data.pagination || null);
+      }
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch documents. Please try again.",
+        variant: "destructive"
+      });
+      setDocuments([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, searchTerm, selectedDepartment, toast]);
+
+  // Fetch documents on component mount and when dependencies change
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  // Handle search with debouncing
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      setCurrentPage(1); // Reset to first page when searching
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm]);
+
+  // Format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  // Get file extension from fileName
+  const getFileType = (fileName: string) => {
+    return fileName.split('.').pop()?.toUpperCase() || 'FILE';
+  };
+
+  // Handle document preview
+  const handlePreview = async (documentId: string) => {
+    try {
+      window.open(`http://localhost:8000/api/documents/download/${documentId}`, '_blank');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to preview document.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Handle document download
+  const handleDownload = async (documentId: string, fileName: string) => {
+    try {
+      const response = await axiosInstance.get(`/api/documents/download/${documentId}`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download document.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "approved":
@@ -95,12 +186,14 @@ export function DocumentsPage() {
                 <Input
                   placeholder="Search documents..."
                   className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => fetchDocuments()}>
                   <Filter className="h-4 w-4 mr-2" />
-                  Filter
+                  Refresh
                 </Button>
                 <Button variant="outline" size="sm">
                   <Upload className="h-4 w-4 mr-2" />
@@ -109,56 +202,126 @@ export function DocumentsPage() {
               </div>
             </div>
 
+            {/* Loading State */}
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="ml-2">Loading documents...</span>
+              </div>
+            )}
+
+            {/* No Documents State */}
+            {!loading && documents.length === 0 && (
+              <div className="text-center py-12">
+                <FileText className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  No documents found
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {searchTerm ? 'Try adjusting your search terms' : 'Upload your first document to get started'}
+                </p>
+              </div>
+            )}
+
             {/* Documents Grid */}
-            <div className="grid gap-6">
-              {mockDocuments.map((document) => (
-                <Card key={document.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                          <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                            {document.name}
-                          </h3>
-                          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-2">
-                            <span>{document.department}</span>
-                            <span>•</span>
-                            <span>{document.type}</span>
-                            <span>•</span>
-                            <span>{document.size}</span>
-                            <span>•</span>
-                            <span>{document.version}</span>
+            {!loading && documents.length > 0 && (
+              <div className="grid gap-6">
+                {documents.map((document) => (
+                  <Card key={document._id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-4">
+                          <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                            <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                           </div>
-                          <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                            <span>Uploaded: {document.uploadDate}</span>
-                            <span>Modified: {document.lastModified}</span>
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                              {document.title || document.fileName}
+                            </h3>
+                            <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-2">
+                              <span>{document.department?.name || document.classification}</span>
+                              <span>•</span>
+                              <span>{getFileType(document.fileName)}</span>
+                              <span>•</span>
+                              <span>{formatFileSize(document.fileSize)}</span>
+                              <span>•</span>
+                              <span>By: {document.uploadedBy?.name}</span>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                              <span>Uploaded: {formatDate(document.createdAt)}</span>
+                              <span>Modified: {formatDate(document.updatedAt)}</span>
+                            </div>
+                            {document.summary && (
+                              <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 line-clamp-2">
+                                {document.summary}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                            {document.detected_language || 'Unknown'}
+                          </Badge>
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handlePreview(document._id)}
+                              title="Preview document"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDownload(document._id, document.fileName)}
+                              title="Download document"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Badge className={getStatusColor(document.status)}>
-                          {document.status.replace('_', ' ')}
-                        </Badge>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && pagination && pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Showing {((pagination.currentPage - 1) * 10) + 1} to {Math.min(pagination.currentPage * 10, pagination.totalDocuments)} of {pagination.totalDocuments} documents
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={!pagination.hasPrevPage}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    Page {pagination.currentPage} of {pagination.totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, pagination.totalPages))}
+                    disabled={!pagination.hasNextPage}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Upload Area */}
-            <Card className="border-dashed border-2 border-gray-300 dark:border-gray-600">
+            {/* <Card className="border-dashed border-2 border-gray-300 dark:border-gray-600">
               <CardContent className="p-12 text-center">
                 <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
@@ -172,7 +335,7 @@ export function DocumentsPage() {
                   Choose Files
                 </Button>
               </CardContent>
-            </Card>
+            </Card> */}
           </div>
         </main>
       </div>

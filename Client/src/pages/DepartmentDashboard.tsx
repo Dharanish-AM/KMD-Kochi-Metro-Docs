@@ -18,7 +18,8 @@ import {
   BarChart3,
   TrendingUp,
   Award,
-  Target
+  Target,
+  Loader
 } from "lucide-react"
 import { DepartmentFileUpload } from "@/components/departments/department-file-upload"
 import { DepartmentFileHistory } from "@/components/departments/department-file-history"
@@ -26,8 +27,10 @@ import { DepartmentStats } from "@/components/departments/department-stats"
 import { DepartmentSidebarLayout } from "@/components/layout/DepartmentSidebarLayout"
 import { DepartmentProfileSettings } from "@/components/departments/department-profile-settings"
 import { DepartmentNotifications } from "@/components/departments/department-notifications"
-import { departmentAPI, documentAPI } from "@/lib/api"
+import { departmentAPI, documentAPI, type DocumentFromAPI } from "@/lib/api"
 import axiosInstance from "@/Utils/Auth/axiosInstance"
+import { useAuth } from "@/contexts/AuthContext"
+import { format, isToday, parseISO } from "date-fns"
 interface DepartmentDashboardProps {
   department: string
 }
@@ -531,9 +534,12 @@ const departmentData: Record<string, DepartmentInfo> = {
 }
 
 const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
+  const { user } = useAuth()
   const [activeSection, setActiveSection] = useState("overview")
   const [departmentId, setDepartmentId] = useState<string | null>(null)
   const [fileCount, setFileCount] = useState(0)
+  const [recentFiles, setRecentFiles] = useState<DocumentFromAPI[]>([])
+  const [loadingRecentFiles, setLoadingRecentFiles] = useState(false)
   
   // Fetch departmentId based on department name
   useEffect(() => {
@@ -570,22 +576,76 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
     fetchDepartmentId()
   }, [department])
 
-  // Fetch file count for the sidebar badge
+  // Fetch file count and recent files for the sidebar badge
   useEffect(() => {
-    const fetchFileCount = async () => {
+    const fetchFileData = async () => {
       if (!departmentId) return
 
       try {
         const documents = await documentAPI.getDocumentsByDepartment(departmentId)
         setFileCount(documents.length)
+        
+        // Filter documents uploaded today
+        const today = new Date()
+        const todaysFiles = documents.filter(doc => {
+          try {
+            const uploadDate = parseISO(doc.createdAt)
+            return isToday(uploadDate)
+          } catch (error) {
+            console.warn("Invalid date format for document:", doc.fileName)
+            return false
+          }
+        })
+        
+        // Sort by upload time (most recent first) and take latest 4
+        const sortedRecentFiles = todaysFiles
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 4)
+        
+        setRecentFiles(sortedRecentFiles)
       } catch (error) {
-        console.error("Failed to fetch file count:", error)
+        console.error("Failed to fetch file data:", error)
         setFileCount(0)
+        setRecentFiles([])
       }
     }
 
-    fetchFileCount()
+    fetchFileData()
   }, [departmentId])
+
+  // Function to fetch recent files (can be called separately)
+  const fetchRecentFiles = async () => {
+    if (!departmentId) return
+    
+    setLoadingRecentFiles(true)
+    try {
+      const documents = await documentAPI.getDocumentsByDepartment(departmentId)
+      
+      // Filter documents uploaded today
+      const today = new Date()
+      const todaysFiles = documents.filter(doc => {
+        try {
+          const uploadDate = parseISO(doc.createdAt)
+          return isToday(uploadDate)
+        } catch (error) {
+          console.warn("Invalid date format for document:", doc.fileName)
+          return false
+        }
+      })
+      
+      // Sort by upload time (most recent first) and take latest 4
+      const sortedRecentFiles = todaysFiles
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 4)
+      
+      setRecentFiles(sortedRecentFiles)
+    } catch (error) {
+      console.error("Failed to fetch recent files:", error)
+      setRecentFiles([])
+    } finally {
+      setLoadingRecentFiles(false)
+    }
+  }
 
   // Function to refresh file count (can be called by child components)
   const refreshFileCount = async () => {
@@ -644,7 +704,14 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
   const renderContent = () => {
     switch (activeSection) {
       case "overview":
-        return <DepartmentOverview department={department} deptInfo={deptInfo} theme={theme} />
+        return <DepartmentOverview 
+          department={department} 
+          deptInfo={deptInfo} 
+          theme={theme} 
+          recentFiles={recentFiles}
+          loadingRecentFiles={loadingRecentFiles}
+          onRefreshRecentFiles={fetchRecentFiles}
+        />
       case "upload":
         return <DepartmentFileUpload department={department} />
       case "history":
@@ -652,19 +719,26 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
       case "accepted":
         return departmentId ? <DepartmentFileHistory department={department} departmentId={departmentId} filter="accepted" onFileCountChange={refreshFileCount} /> : <div>Loading...</div>
       case "profile":
-        return <DepartmentProfileSettings department={department} userName="John Doe" userRole="Document Manager" />
+        return <DepartmentProfileSettings department={department} userName={user?.name || "User"} userRole={user?.role || "Staff Member"} />
       case "notifications":
-        return <DepartmentNotifications department={department} userName="John Doe" />
+        return <DepartmentNotifications department={department} userName={user?.name || "User"} />
       default:
-        return <DepartmentOverview department={department} deptInfo={deptInfo} theme={theme} />
+        return <DepartmentOverview 
+          department={department} 
+          deptInfo={deptInfo} 
+          theme={theme} 
+          recentFiles={recentFiles}
+          loadingRecentFiles={loadingRecentFiles}
+          onRefreshRecentFiles={fetchRecentFiles}
+        />
     }
   }
 
   return (
     <DepartmentSidebarLayout
       department={department}
-      userName="John Doe"
-      userRole="Document Manager"
+      userName={user?.name || "User"}
+      userRole={user?.role || "Staff Member"}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
       fileCount={fileCount}
@@ -677,7 +751,21 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
 }
 
 // Overview Component
-const DepartmentOverview = ({ department, deptInfo, theme }: { department: string, deptInfo: any, theme: any }) => {
+const DepartmentOverview = ({ 
+  department, 
+  deptInfo, 
+  theme, 
+  recentFiles, 
+  loadingRecentFiles, 
+  onRefreshRecentFiles 
+}: { 
+  department: string, 
+  deptInfo: any, 
+  theme: any,
+  recentFiles: DocumentFromAPI[],
+  loadingRecentFiles: boolean,
+  onRefreshRecentFiles: () => Promise<void>
+}) => {
   return (
     <div className="space-y-8">
       {/* Welcome Banner - Now uses department theme colors */}
@@ -832,32 +920,82 @@ const DepartmentOverview = ({ department, deptInfo, theme }: { department: strin
       {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Clock className="h-5 w-5 text-green-600" />
-            <span>Recent Activity</span>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Clock className="h-5 w-5 text-green-600" />
+              <span>Recent Activity</span>
+              <Badge variant="secondary" className="ml-2">
+                Today
+              </Badge>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefreshRecentFiles}
+              disabled={loadingRecentFiles}
+              className="h-8"
+            >
+              {loadingRecentFiles ? (
+                <Loader className="h-4 w-4 animate-spin" />
+              ) : (
+                <Clock className="h-4 w-4" />
+              )}
+              Refresh
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
-          <div className="space-y-4">
-            {[
-              { time: "2 hours ago", action: "Document approved", file: "Q4_Financial_Report.pdf", type: "approved" },
-              { time: "5 hours ago", action: "New upload", file: "Safety_Protocol_Rev3.pdf", type: "upload" },
-              { time: "1 day ago", action: "Document rejected", file: "Incomplete_Form.docx", type: "rejected" },
-              { time: "2 days ago", action: "Document approved", file: "Training_Materials.pptx", type: "approved" }
-            ].map((activity, index) => (
-              <div key={index} className="flex items-center space-x-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                <div className={`w-2 h-2 rounded-full ${
-                  activity.type === 'approved' ? 'bg-green-500' :
-                  activity.type === 'rejected' ? 'bg-red-500' : 'bg-blue-500'
-                }`}></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{activity.action}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{activity.file}</p>
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">{activity.time}</div>
-              </div>
-            ))}
-          </div>
+          {loadingRecentFiles ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader className="h-6 w-6 animate-spin text-gray-500" />
+              <span className="ml-2 text-sm text-gray-500">Loading recent files...</span>
+            </div>
+          ) : recentFiles.length > 0 ? (
+            <div className="space-y-4">
+              {recentFiles.map((file, index) => {
+                const uploadTime = parseISO(file.createdAt)
+                const timeAgo = format(uploadTime, 'HH:mm')
+                const timeSinceUpload = Math.floor((new Date().getTime() - uploadTime.getTime()) / (1000 * 60))
+                const displayTime = timeSinceUpload < 60 ? `${timeSinceUpload}m ago` : `${Math.floor(timeSinceUpload / 60)}h ago`
+                
+                return (
+                  <div key={file._id} className="flex items-center space-x-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        New upload
+                        {file.classification && (
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            {file.classification}
+                          </Badge>
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                        {file.fileName}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        Uploaded by {file.uploadedBy.name}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{displayTime}</div>
+                      <div className="text-xs text-gray-400 dark:text-gray-500">{timeAgo}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No files uploaded today
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                Files uploaded today will appear here
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -22,7 +22,7 @@ import {
   Shield
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-
+import { useNavigate } from "react-router-dom"
 interface DepartmentSidebarLayoutProps {
   children: React.ReactNode
   department: string
@@ -30,7 +30,7 @@ interface DepartmentSidebarLayoutProps {
   userRole: string
   activeSection: string
   onSectionChange: (section: string) => void
-  fileCount?: number // Optional file count for dynamic badge
+  fileCount?: number 
 }
 
 const departmentIcons = {
@@ -287,10 +287,26 @@ export const DepartmentSidebarLayout = ({
 }: DepartmentSidebarLayoutProps) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const navigate = useNavigate()
   
   const theme = departmentThemes[department as keyof typeof departmentThemes] || departmentThemes["Engineering"]
   const departmentInfo = departmentIcons[department as keyof typeof departmentIcons] || departmentIcons["Engineering"]
-
+ const handleSignOut = () => {
+    try {
+      
+    
+      localStorage.removeItem('token')
+    
+     
+      
+      // Navigate to login page
+      navigate('/login', { replace: true })
+    } catch (error) {
+      console.error('Error during sign out:', error)
+      // Even if there's an error, still navigate to login
+      navigate('/login', { replace: true })
+    }
+  }
   const navigationItems = [
     {
       id: "overview",
@@ -576,6 +592,7 @@ export const DepartmentSidebarLayout = ({
             <Button
               variant="ghost"
               size="sm"
+                            onClick={handleSignOut}
               className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
             >
               <LogOut className="h-4 w-4 mr-3" />

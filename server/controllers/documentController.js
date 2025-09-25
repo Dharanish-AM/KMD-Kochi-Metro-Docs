@@ -294,6 +294,60 @@ exports.getDocumentsByUser = async (req, res) => {
   }
 };
 
+exports.getAllDocuments = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, search = "", department = "", status = "" } = req.query;
+    
+    // Build query object
+    let query = {};
+    
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { fileName: { $regex: search, $options: "i" } },
+        { summary: { $regex: search, $options: "i" } }
+      ];
+    }
+    
+    // Add department filter
+    if (department) {
+      query.classification = { $regex: department, $options: "i" };
+    }
+
+    // Calculate skip value for pagination
+    const skip = (page - 1) * limit;
+    
+    // Fetch documents with pagination
+    const documents = await Document.find(query)
+      .populate("uploadedBy", "name email")
+      .populate("department", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalDocuments = await Document.countDocuments(query);
+    const totalPages = Math.ceil(totalDocuments / limit);
+
+    console.log(`Fetched ${documents.length} documents out of ${totalDocuments} total`);
+
+    res.status(200).json({
+      documents,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalDocuments,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching all documents:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 exports.deleteDocument = async (req, res) => {
   try {
     const documentId = req.params.documentId;
