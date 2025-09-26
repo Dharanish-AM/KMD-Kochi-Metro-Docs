@@ -22,9 +22,12 @@ const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { id: "departments", label: "Departments", icon: Building2, path: "/departments" },
   { id: "documents", label: "Documents", icon: FileText, path: "/documents" },
+    { id: "important-points", label: "Important Points", icon: Lightbulb, path: "/important-points" },
+    {id:"Rag-Search", label:"Rag Search", icon:Lightbulb, path:"/rag-search"},
+
   { id: "chat-assistant", label: "Chat Assistant", icon: MessageSquare, path: "/chat-assistant" },
   { id: "users", label: "Users", icon: Users, path: "/users" },
-  { id: "notifications", label: "Notifications", icon: Bell, path: "/notifications" },
+  // { id: "notifications", label: "Notifications", icon: Bell, path: "/notifications" },
   { id: "profile", label: "Profile", icon: UserCircle, path: "/profile" },
   { id: "settings", label: "Settings", icon: Settings, path: "/settings" }
 ]

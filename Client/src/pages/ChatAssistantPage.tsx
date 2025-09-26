@@ -31,17 +31,62 @@ import {
   Lightbulb,
   Star,
   ChevronRight,
-  Wand2
+  Wand2,
+  X,
+  CheckCircle,
+  Tag,
+  Paperclip
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sidebar } from "@/components/layout/sidebar"
-import axiosInstance from "@/Utils/Auth/axiosInstance";
+import axiosInstance from "@/Utils/Auth/axiosInstance"
+import { useToast } from "@/hooks/use-toast"
 interface Message {
   id: string
   content: string
   role: 'user' | 'assistant'
   timestamp: Date
   isTyping?: boolean
+  attachedDocuments?: Document[]
+}
+
+// Document interface based on backend schema
+interface Document {
+  _id: string;
+  title: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileUrl: string;
+  summary?: string;
+  classification: string;
+  classification_labels?: string[];
+  classification_scores?: number[];
+  metadata?: any;
+  translated_text?: string;
+  detected_language?: string;
+  uploadedBy: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  department: {
+    _id: string;
+    name: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface DocumentsResponse {
+  documents: Document[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalDocuments: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
 }
 
 const suggestedPrompts = [
@@ -55,11 +100,20 @@ const suggestedPrompts = [
   },
   {
     icon: FileText,
-    title: "Document Analysis",
-    prompt: "Analyze all documents uploaded this week",
+    title: "Recent Documents",
+    prompt: "Show me all documents uploaded in the last 2 days",
     category: "Documents",
     gradient: "from-indigo-500 to-blue-500",
     bgGradient: "from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20"
+  },
+  {
+    icon: Tag,
+    title: "Tag & Analyze Documents",
+    prompt: "Open document selector to tag and analyze documents",
+    isAction: true,
+    category: "AI Analysis",
+    gradient: "from-purple-500 to-indigo-500",
+    bgGradient: "from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20"
   },
   {
     icon: TrendingUp,
@@ -70,17 +124,9 @@ const suggestedPrompts = [
     bgGradient: "from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20"
   },
   {
-    icon: Database,
-    title: "Database Insights",
-    prompt: "What are the key insights from our database?",
-    category: "Insights",
-    gradient: "from-blue-600 to-indigo-600",
-    bgGradient: "from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20"
-  },
-  {
     icon: Brain,
-    title: "AI Recommendations",
-    prompt: "What are your AI-powered recommendations for optimization?",
+    title: "AI Document Analysis",
+    prompt: "Analyze document patterns and provide insights",
     category: "AI Insights",
     gradient: "from-cyan-500 to-blue-500",
     bgGradient: "from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20"
@@ -123,8 +169,15 @@ export default function ChatAssistantPage() {
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [documentLoading, setDocumentLoading] = useState(false)
+  const [showDocumentSelector, setShowDocumentSelector] = useState(false)
+  const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([])
+  const [documentSearchTerm, setDocumentSearchTerm] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const documentScrollRef = useRef<HTMLDivElement>(null)
+  const { toast } = useToast()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -134,34 +187,169 @@ export default function ChatAssistantPage() {
     scrollToBottom()
   }, [messages])
 
+  // Fetch all available documents (with option to filter by recent dates)
+  const fetchDocuments = async (recentOnly = false) => {
+    try {
+      setDocumentLoading(true)
+      
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '100', // Fetch more documents
+        ...(recentOnly && (() => {
+          const currentDate = new Date()
+          const weekAgo = new Date(currentDate)
+          weekAgo.setDate(weekAgo.getDate() - 7) // Last 7 days instead of just 2
+          return {
+            fromDate: weekAgo.toISOString().split('T')[0],
+            toDate: currentDate.toISOString().split('T')[0]
+          }
+        })())
+      })
+
+      const response = await axiosInstance.get(`/api/documents/all?${params}`)
+      
+      if (response.data) {
+        setDocuments(response.data.documents || [])
+      }
+    } catch (error) {
+      console.error("Error fetching documents:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch documents. Please try again.",
+        variant: "destructive"
+      })
+      setDocuments([])
+    } finally {
+      setDocumentLoading(false)
+    }
+  }
+
+  // Load documents on component mount
+  useEffect(() => {
+    fetchDocuments(false) // Fetch all documents, not just recent ones
+  }, [])
+
+  // Scroll to top when search term changes
+  useEffect(() => {
+    if (documentScrollRef.current) {
+      documentScrollRef.current.scrollTop = 0
+    }
+  }, [documentSearchTerm])
+
+  // Filter documents based on search term
+  const filteredDocuments = documents.filter(doc => 
+    doc.title.toLowerCase().includes(documentSearchTerm.toLowerCase()) ||
+    doc.fileName.toLowerCase().includes(documentSearchTerm.toLowerCase()) ||
+    doc.classification.toLowerCase().includes(documentSearchTerm.toLowerCase()) ||
+    doc.department?.name.toLowerCase().includes(documentSearchTerm.toLowerCase())
+  )
+
+  // Toggle document selection
+  const toggleDocumentSelection = (document: Document) => {
+    setSelectedDocuments(prev => {
+      const isSelected = prev.some(doc => doc._id === document._id)
+      if (isSelected) {
+        return prev.filter(doc => doc._id !== document._id)
+      } else {
+        return [...prev, document]
+      }
+    })
+  }
+
+  // Remove selected document
+  const removeSelectedDocument = (documentId: string) => {
+    setSelectedDocuments(prev => prev.filter(doc => doc._id !== documentId))
+  }
+
+  // Handle @ symbol detection for document tagging
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setInputValue(value)
+    
+    // Check if user typed @ and show document selector
+    if (value.includes('@') && !showDocumentSelector) {
+      setShowDocumentSelector(true)
+    }
+    
+    // Extract search term after @
+    const atIndex = value.lastIndexOf('@')
+    if (atIndex !== -1) {
+      const searchAfterAt = value.substring(atIndex + 1)
+      if (searchAfterAt.length > 0) {
+        setDocumentSearchTerm(searchAfterAt)
+      }
+    }
+  }
+
+  // Format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString()
+  }
+
   const handleSendMessage = async (content?: string) => {
     const messageContent = content || inputValue.trim()
     if (!messageContent) return
 
+    // Create user message with attached documents
     const userMessage: Message = {
       id: Date.now().toString(),
       content: messageContent,
       role: 'user',
-      timestamp: new Date()
+      timestamp: new Date(),
+      attachedDocuments: selectedDocuments.length > 0 ? [...selectedDocuments] : undefined
     }
 
     setMessages(prev => [...prev, userMessage])
     setInputValue('')
+    setSelectedDocuments([])
+    setShowDocumentSelector(false)
     setIsLoading(true)
 
     try {
-      const response = await axiosInstance.post('api/documents/chat-assistant', {
-        message: messageContent,
-      });
+      let response
+      
+      // Check if there are selected documents - if ANY documents are selected, use Groq API
+      if (selectedDocuments.length > 0) {
+        // Use Groq API for document-based analysis
+        const documentContext = selectedDocuments.map(doc => ({
+          title: doc.title || doc.fileName,
+          summary: doc.summary,
+          content: doc.translated_text,
+          classification: doc.classification,
+          department: doc.department?.name,
+          metadata: doc.metadata
+        }))
 
-      const data = response.data;
+        response = await axiosInstance.post('/api/documents/groq-analysis', {
+          message: messageContent,
+          documents: documentContext,
+          requestType: 'document_analysis'
+        })
+      } else {
+        // Regular chat assistant
+        response = await axiosInstance.post('/api/documents/chat-assistant', {
+          message: messageContent,
+          attachedDocuments: selectedDocuments.length > 0 ? selectedDocuments.map(doc => doc._id) : undefined
+        })
+      }
+
+      const data = response.data
 
       if (response.status === 200) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
-          content: data.response,
+          content: data.response || data.analysis || data.summary,
           role: 'assistant',
-          timestamp: new Date(data.timestamp)
+          timestamp: new Date(data.timestamp || new Date())
         }
         setMessages(prev => [...prev, assistantMessage])
       } else {
@@ -333,7 +521,13 @@ export default function ChatAssistantPage() {
                           <Button
                             variant="ghost"
                             className="relative w-full h-auto p-6 text-left border-0 bg-transparent hover:bg-transparent"
-                            onClick={() => handleSendMessage(prompt.prompt)}
+                            onClick={() => {
+                              if (prompt.isAction) {
+                                setShowDocumentSelector(true)
+                              } else {
+                                handleSendMessage(prompt.prompt)
+                              }
+                            }}
                           >
                             <div className="flex items-start space-x-4 w-full">
                               <div className={`relative w-12 h-12 rounded-xl bg-gradient-to-br ${prompt.gradient} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-200`}>
@@ -355,7 +549,10 @@ export default function ChatAssistantPage() {
                                   </div>
                                 </div>
                                 <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 pr-2">
-                                  {prompt.prompt}
+                                  {prompt.isAction 
+                                    ? "Click to open document selector and start tagging documents for analysis"
+                                    : prompt.prompt
+                                  }
                                 </p>
                               </div>
                             </div>
@@ -437,6 +634,29 @@ export default function ChatAssistantPage() {
                             </div>
                           ))}
                         </div>
+                        
+                        {/* Show attached documents for user messages */}
+                        {message.role === 'user' && message.attachedDocuments && message.attachedDocuments.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-white/20">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Paperclip className="h-3 w-3 text-white/80" />
+                              <span className="text-xs text-white/80 font-medium">
+                                Attached Documents ({message.attachedDocuments.length})
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {message.attachedDocuments.map((doc) => (
+                                <div key={doc._id} className="flex items-center gap-2 bg-white/10 rounded px-2 py-1">
+                                  <FileText className="h-3 w-3 text-white/80" />
+                                  <span className="text-xs text-white/90">{doc.title || doc.fileName}</span>
+                                  <Badge variant="secondary" className="text-xs bg-white/20 text-white/80">
+                                    {doc.department?.name || doc.classification}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       
                       {/* Message Actions */}
@@ -494,6 +714,306 @@ export default function ChatAssistantPage() {
             </ScrollArea>
           )}
 
+          {/* Selected Documents Display */}
+          {selectedDocuments.length > 0 && (
+            <div className="border-t border-blue-200/50 dark:border-blue-700/30 bg-blue-50/50 dark:bg-blue-950/30 p-4">
+              <div className="max-w-4xl mx-auto">
+                <div className="flex items-center gap-2 mb-3">
+                  <Paperclip className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                    Attached Documents ({selectedDocuments.length})
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedDocuments.map((doc) => (
+                    <div
+                      key={doc._id}
+                      className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <FileText className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium">{doc.title || doc.fileName}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {doc.department?.name || doc.classification}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 hover:bg-red-100 dark:hover:bg-red-900/20"
+                        onClick={() => removeSelectedDocument(doc._id)}
+                      >
+                        <X className="h-3 w-3 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Enhanced Document Selector Popup */}
+          {showDocumentSelector && (
+            <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-blue-200/50 dark:border-blue-700/30 w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-slide-in-up">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                      <Tag className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Select Documents to Tag
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Choose documents to include in your AI analysis
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowDocumentSelector(false)
+                      setDocumentSearchTerm('')
+                    }}
+                    className="rounded-full"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search documents by title, filename, department, or content..."
+                      value={documentSearchTerm}
+                      onChange={(e) => setDocumentSearchTerm(e.target.value)}
+                      className="pl-10 h-12 bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Stats and Actions */}
+                <div className="flex items-center justify-between px-6 py-3 bg-gray-50 dark:bg-slate-800/50 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <Database className="h-4 w-4" />
+                      {documents.length} total documents
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <CheckCircle className="h-4 w-4 text-blue-500" />
+                      {selectedDocuments.length} selected
+                    </span>
+                    {documentLoading && (
+                      <span className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                        Loading...
+                      </span>
+                    )}
+                    {filteredDocuments.length > 5 && (
+                      <span className="text-xs text-blue-500 dark:text-blue-400">
+                        ↕️ Scroll to see more
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchDocuments(true)}
+                      disabled={documentLoading}
+                    >
+                      <Calendar className="h-4 w-4 mr-1" />
+                      Recent Only
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchDocuments(false)}
+                      disabled={documentLoading}
+                    >
+                      <Database className="h-4 w-4 mr-1" />
+                      All Documents
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Document List */}
+                <div className="flex-1 overflow-hidden min-h-0">
+                  <div ref={documentScrollRef} className="h-full overflow-y-auto p-4 space-y-3 document-selector-scroll">
+                    {filteredDocuments.map((doc) => {
+                      const isSelected = selectedDocuments.some(selected => selected._id === doc._id)
+                      return (
+                        <div
+                          key={doc._id}
+                          className={cn(
+                            "group flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02]",
+                            isSelected 
+                              ? "bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 border-blue-300 dark:border-blue-600 shadow-md" 
+                              : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700"
+                          )}
+                          onClick={() => toggleDocumentSelection(doc)}
+                        >
+                          {/* Selection Checkbox */}
+                          <div className={cn(
+                            "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 mt-1",
+                            isSelected 
+                              ? "bg-gradient-to-br from-blue-500 to-cyan-500 border-blue-500 shadow-lg" 
+                              : "border-gray-300 dark:border-gray-600 group-hover:border-blue-400"
+                          )}>
+                            {isSelected && <CheckCircle className="h-4 w-4 text-white" />}
+                          </div>
+                          
+                          {/* Document Icon */}
+                          <div className={cn(
+                            "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+                            isSelected 
+                              ? "bg-gradient-to-br from-blue-500 to-cyan-500" 
+                              : "bg-gray-100 dark:bg-slate-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/20"
+                          )}>
+                            <FileText className={cn(
+                              "h-6 w-6",
+                              isSelected ? "text-white" : "text-blue-500"
+                            )} />
+                          </div>
+                          
+                          {/* Document Details */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                {doc.title || doc.fileName}
+                              </h4>
+                              <div className="flex gap-1 flex-shrink-0">
+                                <Badge 
+                                  variant="secondary" 
+                                  className={cn(
+                                    "text-xs",
+                                    isSelected 
+                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
+                                      : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                  )}
+                                >
+                                  {doc.department?.name || doc.classification}
+                                </Badge>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {doc.uploadedBy?.name || 'Unknown'}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(doc.createdAt)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Database className="h-3 w-3" />
+                                {formatFileSize(doc.fileSize)}
+                              </span>
+                              {doc.detected_language && (
+                                <Badge variant="outline" className="h-5 text-xs">
+                                  {doc.detected_language}
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            {doc.summary && (
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2 bg-gray-50 dark:bg-slate-700/50 rounded-lg p-2">
+                                {doc.summary}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    
+                    {filteredDocuments.length === 0 && !documentLoading && (
+                      <div className="text-center py-12">
+                        <div className="w-16 h-16 mx-auto rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center mb-4">
+                          <Search className="h-8 w-8 text-gray-400" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                          No documents found
+                        </h3>
+                        <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+                          {documentSearchTerm 
+                            ? `No documents match "${documentSearchTerm}". Try adjusting your search terms.`
+                            : 'No documents are available. Upload some documents to get started.'
+                          }
+                        </p>
+                        {documentSearchTerm && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDocumentSearchTerm('')}
+                            className="mt-4"
+                          >
+                            Clear search
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {documentLoading && (
+                      <div className="space-y-3">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-gray-50 dark:bg-slate-800 animate-pulse">
+                            <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                            <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800/50">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {selectedDocuments.length > 0 && (
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">
+                        {selectedDocuments.length} document{selectedDocuments.length !== 1 ? 's' : ''} selected
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowDocumentSelector(false)
+                        setDocumentSearchTerm('')
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowDocumentSelector(false)
+                        setDocumentSearchTerm('')
+                        if (selectedDocuments.length > 0) {
+                          inputRef.current?.focus()
+                        }
+                      }}
+                      disabled={selectedDocuments.length === 0}
+                      className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Attach {selectedDocuments.length} Document{selectedDocuments.length !== 1 ? 's' : ''}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Input Area */}
           <div className="relative border-t border-blue-200/50 dark:border-blue-700/30 bg-gradient-to-r from-blue-50/80 via-indigo-50/80 to-cyan-50/80 dark:from-blue-950/50 dark:via-indigo-950/50 dark:to-cyan-950/50 backdrop-blur-xl">
             {/* Animated background elements */}
@@ -509,9 +1029,9 @@ export default function ChatAssistantPage() {
                   <Input
                     ref={inputRef}
                     value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
+                    onChange={handleInputChange}
                     onKeyPress={handleKeyPress}
-                    placeholder="Ask me about documents, analytics, performance metrics, or any KMRL insights..."
+                    placeholder="Ask me about documents, analytics, performance metrics... Use @ to tag documents"
                     className="relative pr-16 h-14 text-base rounded-2xl border-2 border-blue-200/50 dark:border-blue-700/30 focus:border-blue-400 dark:focus:border-blue-500 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shadow-lg focus:shadow-xl transition-all duration-200 placeholder:text-slate-400"
                     disabled={isLoading}
                   />
@@ -521,7 +1041,17 @@ export default function ChatAssistantPage() {
                       variant="ghost"
                       size="sm"
                       className="h-8 w-8 p-0 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full"
+                      onClick={() => setShowDocumentSelector(true)}
+                      title="Attach documents"
+                    >
+                      <Paperclip className="h-4 w-4 text-blue-500 hover:text-blue-600" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full"
                       onClick={toggleListening}
+                      title="Voice input"
                     >
                       {isListening ? (
                         <MicOff className="h-4 w-4 text-red-500 animate-pulse" />
