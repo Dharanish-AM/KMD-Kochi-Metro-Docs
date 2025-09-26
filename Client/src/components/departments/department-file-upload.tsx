@@ -38,6 +38,9 @@ import {
   Music,
   Archive,
   Code,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import axiosInstance from "@/Utils/Auth/axiosInstance";
@@ -367,6 +370,7 @@ export const DepartmentFileUpload = ({
   const [userDocuments, setUserDocuments] = useState<DocumentFromAPI[]>([]);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   // Get department theme
@@ -806,14 +810,39 @@ export const DepartmentFileUpload = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+  const formatDate = (document: DocumentFromAPI): string => {
+    // Try uploadedAt first, then createdAt as fallback
+    const dateString = document.uploadedAt || document.createdAt;
+    
+    if (!dateString) return 'No date available';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (error) {
+      return 'Invalid Date';
+    }
+  };
+
+  const toggleSummary = (documentId: string) => {
+    setExpandedSummaries(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(documentId)) {
+        newSet.delete(documentId);
+      } else {
+        newSet.add(documentId);
+      }
+      return newSet;
     });
   };
 
@@ -1236,7 +1265,7 @@ export const DepartmentFileUpload = ({
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center space-x-2">
                 <FolderOpen className="h-5 w-5" />
-                <span>Recent Documents</span>
+                <span>Recent Documets</span>
                 <Badge variant="secondary" className="ml-2">
                   {userDocuments.length > 3
                     ? "3 of " + userDocuments.length
@@ -1279,94 +1308,146 @@ export const DepartmentFileUpload = ({
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {userDocuments.slice(-3).map((document) => (
                   <div
                     key={document._id}
-                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors"
+                    className="group relative overflow-hidden border-0 bg-white shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-1 rounded-2xl"
+                    style={{
+                      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%)'
+                    }}
                   >
-                    <div className="flex items-center space-x-4 flex-1 min-w-0">
-                      <div className="flex-shrink-0">
-                        {getFileIcon(document.fileName)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-1">
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate pr-2">
-                            {document.title}
-                          </h4>
-                        </div>
+                    {/* Decorative gradient bar at top */}
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+                    
+                    {/* Hover effect overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    
+                    <div className="p-6 relative z-10">
+                      <div className="flex items-start justify-between">
+                        {/* Left section with document info */}
+                        <div className="flex items-start space-x-4 flex-1 min-w-0">
+                          {/* Enhanced file icon */}
+                          <div className="relative flex-shrink-0">
+                            <div className="p-3 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl shadow-md group-hover:shadow-lg transition-all duration-300 group-hover:scale-110">
+                              {getFileIcon(document.fileName)}
+                            </div>
+                          </div>
 
-                        <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mb-2">
-                          <span className="flex items-center space-x-1">
-                            <FileText className="h-3 w-3" />
-                            <span>{document.fileName}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <span>{formatFileSize(document.fileSize)}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Calendar className="h-3 w-3" />
-                            <span>{formatDate(document.createdAt)}</span>
-                          </span>
-                        </div>
+                          {/* Document details */}
+                          <div className="flex-1 min-w-0">
+                            {/* Document title */}
+                            <div className="flex items-start justify-between mb-3">
+                              <h4 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-300 line-clamp-2 leading-tight">
+                                {document.title || document.fileName}
+                              </h4>
+                            </div>
 
-                        <div className="flex items-center space-x-2 flex-wrap gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            {document.category}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {document.classification}
-                          </Badge>
-                          {document.detected_language &&
-                            document.detected_language !== "unknown" && (
-                              <Badge variant="secondary" className="text-xs">
-                                {document.detected_language.toUpperCase()}
+                            {/* Metadata badges */}
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              <Badge className="px-3 py-1 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-0 shadow-sm hover:shadow-md transition-shadow duration-200">
+                                <FileText className="h-3 w-3 mr-1" />
+                                {document.fileName}
                               </Badge>
+                              <Badge className="px-3 py-1 bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border-0 shadow-sm hover:shadow-md transition-shadow duration-200">
+                                <Archive className="h-3 w-3 mr-1" />
+                                {formatFileSize(document.fileSize)}
+                              </Badge>
+                              <Badge className="px-3 py-1 bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 border-0 shadow-sm hover:shadow-md transition-shadow duration-200">
+                                {document.category}
+                              </Badge>
+                              {document.detected_language &&
+                                document.detected_language !== "unknown" && (
+                                  <Badge className="px-3 py-1 bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border-0 shadow-sm hover:shadow-md transition-shadow duration-200">
+                                    {document.detected_language.toUpperCase()}
+                                  </Badge>
+                                )}
+                            </div>
+
+                            {/* User and date info */}
+                            <div className="flex items-center gap-6 text-sm text-gray-600 mb-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-gradient-to-r from-gray-200 to-gray-300 rounded-full flex items-center justify-center">
+                                  <User className="h-4 w-4 text-gray-600" />
+                                </div>
+                                <span className="font-medium">{document.uploadedBy?.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-gray-500" />
+                                <span>Uploaded {formatDate(document)}</span>
+                              </div>
+                            </div>
+
+                            {/* AI-Generated Summary - Collapsible */}
+                            {document.summary && (
+                              <div className="mb-4">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleSummary(document._id)}
+                                  className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2 h-auto rounded-xl transition-all duration-200"
+                                >
+                                  <Sparkles className="h-4 w-4" />
+                                  <span className="text-sm font-medium">AI Summary</span>
+                                  {expandedSummaries.has(document._id) ? (
+                                    <ChevronUp className="h-4 w-4 transition-transform duration-200" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 transition-transform duration-200" />
+                                  )}
+                                </Button>
+                                
+                                {expandedSummaries.has(document._id) && (
+                                  <div className="mt-3 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl shadow-sm transition-all duration-300 ease-in-out transform">
+                                    <div className="flex items-start space-x-2">
+                                      <FileText className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                                      <p className="text-sm text-blue-700 leading-relaxed">
+                                        {document.summary}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             )}
-                          <Badge variant="secondary" className="text-xs">
-                            {document.department.name}
-                          </Badge>
+                          </div>
                         </div>
 
-                        {document.summary && (
-                          <p className="text-xs text-gray-600 dark:text-gray-300 mt-2 line-clamp-2">
-                            {document.summary}
-                          </p>
-                        )}
+                        {/* Right section with actions */}
+                        <div className="flex items-center space-x-2 flex-shrink-0 ml-6">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              // TODO: Implement document view/download
+                              toast({
+                                title: "Feature Coming Soon",
+                                description:
+                                  "Document viewing will be available soon",
+                                variant: "default",
+                              });
+                            }}
+                            className="text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 border-0 h-10 w-10 p-0 rounded-xl"
+                            title="View Document"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              handleDeleteDocument(document._id, document.fileName)
+                            }
+                            className="text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 border-0 h-10 w-10 p-0 rounded-xl"
+                            title="Delete Document"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          // TODO: Implement document view/download
-                          toast({
-                            title: "Feature Coming Soon",
-                            description:
-                              "Document viewing will be available soon",
-                            variant: "default",
-                          });
-                        }}
-                        className="h-8 w-8 p-0"
-                        title="View Document"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          handleDeleteDocument(document._id, document.fileName)
-                        }
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                        title="Delete Document"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {/* Bottom accent line with animation */}
+                    <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                   </div>
                 ))}
               </div>
