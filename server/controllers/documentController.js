@@ -84,7 +84,7 @@ exports.uploadDocument = async (req, res) => {
         );
 
         const {
-          summary,
+          summary_en,
           classification,
           metadata,
           translated_text,
@@ -121,7 +121,7 @@ exports.uploadDocument = async (req, res) => {
           fileName: file.originalFilename,
           fileType: file.mimetype,
           fileSize: file.size,
-          summary,
+          summary:summary_en,
           classification: departmentName,
           classification_labels: classification?.labels || [],
           classification_scores: classification?.scores || [],
@@ -176,7 +176,7 @@ exports.uploadDocument = async (req, res) => {
           message: "Document uploaded, processed, and stored successfully",
           document,
           aiData: {
-            summary,
+            summary:summary_en,
             classification,
             metadata,
             translated_text,
