@@ -99,6 +99,14 @@ const suggestedPrompts = [
     bgGradient: "from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20"
   },
   {
+    icon: TrendingUp,
+    title: "Department Summary",
+    prompt: "Get me today's summary for Engineering department",
+    category: "Department",
+    gradient: "from-green-500 to-blue-500",
+    bgGradient: "from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20"
+  },
+  {
     icon: FileText,
     title: "Recent Documents",
     prompt: "Show me all documents uploaded in the last 2 days",
@@ -114,14 +122,6 @@ const suggestedPrompts = [
     category: "AI Analysis",
     gradient: "from-purple-500 to-indigo-500",
     bgGradient: "from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20"
-  },
-  {
-    icon: TrendingUp,
-    title: "Department Performance",
-    prompt: "Show department-wise performance metrics",
-    category: "Analytics",
-    gradient: "from-sky-500 to-blue-500",
-    bgGradient: "from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20"
   },
   {
     icon: Brain,
@@ -295,6 +295,55 @@ export default function ChatAssistantPage() {
     return new Date(dateString).toLocaleDateString()
   }
 
+  // Helper function to detect summary requests
+  const detectSummaryRequest = (message: string) => {
+    const lowerMessage = message.toLowerCase()
+    
+    // Today's summary patterns
+    if ((lowerMessage.includes('today') || lowerMessage.includes('today\'s')) && 
+        (lowerMessage.includes('summary') || lowerMessage.includes('summarize') || lowerMessage.includes('summarization'))) {
+      return 'today_summary'
+    }
+    
+    // Department-specific summary patterns
+    const departmentMatch = lowerMessage.match(/(?:from|for|of|in)\s+(\w+)\s+(?:department|dept)/i)
+    if (departmentMatch && (lowerMessage.includes('summary') || lowerMessage.includes('summarize'))) {
+      return { type: 'department_summary', department: departmentMatch[1] }
+    }
+    
+    // Date range summary patterns
+    if (lowerMessage.includes('summary') && (lowerMessage.includes('week') || lowerMessage.includes('month'))) {
+      return 'period_summary'
+    }
+    
+    return null
+  }
+
+  // Enhanced function to handle summary requests
+  const handleSummaryRequest = async (summaryType: any, messageContent: string) => {
+    try {
+      let endpoint = '/api/documents/chat-assistant'
+      let requestData = { message: messageContent }
+      
+      // Handle different summary types
+      if (summaryType === 'today_summary') {
+        // For today's summary, we'll let the backend handle the logic
+        requestData.message = "Give me today's full summarization from the database"
+      } else if (typeof summaryType === 'object' && summaryType.type === 'department_summary') {
+        // For department-specific summary
+        requestData.message = `Give me today's summary for ${summaryType.department} department`
+      } else if (summaryType === 'period_summary') {
+        // For period-based summary
+        requestData.message = messageContent // Use original message
+      }
+
+      const response = await axiosInstance.post(endpoint, requestData)
+      return response
+    } catch (error) {
+      throw error
+    }
+  }
+
   const handleSendMessage = async (content?: string) => {
     const messageContent = content || inputValue.trim()
     if (!messageContent) return
@@ -335,11 +384,19 @@ export default function ChatAssistantPage() {
           requestType: 'document_analysis'
         })
       } else {
-        // Regular chat assistant
-        response = await axiosInstance.post('/api/documents/chat-assistant', {
-          message: messageContent,
-          attachedDocuments: selectedDocuments.length > 0 ? selectedDocuments.map(doc => doc._id) : undefined
-        })
+        // Check if this is a summary request
+        const summaryType = detectSummaryRequest(messageContent)
+        
+        if (summaryType) {
+          // Handle summary requests specially
+          response = await handleSummaryRequest(summaryType, messageContent)
+        } else {
+          // Regular chat assistant for general queries
+          response = await axiosInstance.post('/api/documents/chat-assistant', {
+            message: messageContent,
+            attachedDocuments: selectedDocuments.length > 0 ? selectedDocuments.map(doc => doc._id) : undefined
+          })
+        }
       }
 
       const data = response.data
@@ -361,7 +418,8 @@ export default function ChatAssistantPage() {
       
       if (error.response) {
         // Server responded with error status
-        errorText = error.response.data?.error || `Server error: ${error.response.status}`
+        const errorData = error.response.data
+        errorText = errorData?.error || errorData?.message || `Server error: ${error.response.status}`
       } else if (error.request) {
         // Request made but no response received
         errorText = "Unable to connect to the AI assistant. Please check your connection. 🌐"
@@ -1031,7 +1089,7 @@ export default function ChatAssistantPage() {
                     value={inputValue}
                     onChange={handleInputChange}
                     onKeyPress={handleKeyPress}
-                    placeholder="Ask me about documents, analytics, performance metrics... Use @ to tag documents"
+                    placeholder="Ask me anything: today's summary, department summaries, document analysis... Use @ to tag documents"
                     className="relative pr-16 h-14 text-base rounded-2xl border-2 border-blue-200/50 dark:border-blue-700/30 focus:border-blue-400 dark:focus:border-blue-500 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shadow-lg focus:shadow-xl transition-all duration-200 placeholder:text-slate-400"
                     disabled={isLoading}
                   />

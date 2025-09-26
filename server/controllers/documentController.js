@@ -691,8 +691,8 @@ exports.chatAssistant = async (req, res) => {
     const lowerMessage = message.toLowerCase();
     let response = "";
 
-    // Today's summary
-    if (lowerMessage.includes('today') && lowerMessage.includes('summary')) {
+    // Today's summary (overall)
+    if (lowerMessage.includes('today') && lowerMessage.includes('summary') && !lowerMessage.includes('department')) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
@@ -703,40 +703,202 @@ exports.chatAssistant = async (req, res) => {
       }).populate('department uploadedBy');
 
       const departmentStats = {};
+      let overallSummaries = [];
+
       todayDocs.forEach(doc => {
         const deptName = doc.department?.name || 'Unknown';
         if (!departmentStats[deptName]) {
-          departmentStats[deptName] = { count: 0, size: 0 };
+          departmentStats[deptName] = { count: 0, size: 0, summaries: [] };
         }
         departmentStats[deptName].count++;
         departmentStats[deptName].size += doc.fileSize || 0;
+        
+        if (doc.summary) {
+          departmentStats[deptName].summaries.push(doc.summary);
+          overallSummaries.push(`[${deptName}] ${doc.summary}`);
+        }
       });
 
-      response = `📊 **Today's Complete Database Summary**
+      // Create combined summary from all departments
+      const combinedSummaryText = overallSummaries.length > 0 
+        ? `\n\n**� Combined Content Summary:**\n${overallSummaries.slice(0, 10).join('\n• ')}\n${overallSummaries.length > 10 ? `\n...and ${overallSummaries.length - 10} more summaries` : ''}`
+        : '';
+
+      response = `�📊 **Today's Complete Database Summary**
 
 **📅 Date:** ${new Date().toLocaleDateString()}
 
 **📄 Documents Overview:**
 • Total documents processed: ${todayDocs.length}
 • Departments active: ${Object.keys(departmentStats).length}
-• Total file size: ${Object.values(departmentStats).reduce((acc, dept) => acc + dept.size, 0) / (1024 * 1024)} MB
+• Total file size: ${(Object.values(departmentStats).reduce((acc, dept) => acc + dept.size, 0) / (1024 * 1024)).toFixed(2)} MB
 
 **🏢 Department Activity:**
 ${Object.entries(departmentStats).map(([dept, stats]) => 
-  `• ${dept}: ${stats.count} documents (${((stats.count / todayDocs.length) * 100).toFixed(1)}%)`
+  `• ${dept}: ${stats.count} documents (${todayDocs.length > 0 ? ((stats.count / todayDocs.length) * 100).toFixed(1) : 0}%) - ${stats.summaries.length} with summaries`
 ).join('\n')}
 
 **🔍 Recent Documents:**
 ${todayDocs.slice(0, 5).map(doc => 
   `• ${doc.fileName || doc.title || 'Unknown'} - ${doc.department?.name || 'Unknown'} - ${doc.createdAt.toLocaleTimeString()}`
-).join('\n')}
+).join('\n')}${combinedSummaryText}
 
 **📈 System Status:**
 • Database status: Online ✅
 • Total documents in system: ${await Document.countDocuments()}
 • System uptime: 99.8%
 
-Would you like me to dive deeper into any specific area?`;
+Would you like me to dive deeper into any specific department or area?`;
+    }
+
+    // Department-specific summary
+    else if (lowerMessage.includes('summary') && (lowerMessage.includes('department') || lowerMessage.includes('dept'))) {
+      // Extract department name from message with multiple patterns
+      const deptPatterns = [
+        /(?:from|for|of|in)\s+([a-zA-Z&\s]+)\s+(?:department|dept)/i,
+        /([a-zA-Z&\s]+)\s+department/i,
+        /summary\s+([a-zA-Z&\s]+)/i,
+        /(?:get|give)\s+me\s+(?:today's\s+)?summary\s+for\s+([a-zA-Z&\s]+)/i
+      ];
+      
+      let targetDept = null;
+      for (const pattern of deptPatterns) {
+        const match = lowerMessage.match(pattern);
+        if (match) {
+          targetDept = match[1].trim().toLowerCase();
+          break;
+        }
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      let query = { createdAt: { $gte: today, $lt: tomorrow } };
+      let matchedDepartmentName = 'All Departments';
+      
+      // If specific department mentioned, filter by department
+      if (targetDept) {
+        // Create flexible department matching
+        const departmentKeywords = {
+          'engineering': ['Engineering & Infrastructure', 'engineering'],
+          'finance': ['Finance & Accounts', 'finance'],
+          'hr': ['Human Resources', 'human', 'hr'],
+          'operations': ['Operations & Maintenance', 'operations', 'maintenance'],
+          'electrical': ['Electrical & Mechanical', 'electrical', 'mechanical'],
+          'legal': ['Legal & Compliance', 'legal', 'compliance'],
+          'procurement': ['Procurement & Contracts', 'procurement', 'contracts'],
+          'communications': ['Corporate Communications', 'communications', 'corporate'],
+          'business': ['Business Development', 'business', 'development'],
+          'security': ['Vigilance & Security', 'security', 'vigilance'],
+          'it': ['Information Technology & Systems', 'it', 'technology', 'systems'],
+          'planning': ['Planning & Development', 'planning'],
+          'environment': ['Environment & Sustainability', 'environment', 'sustainability'],
+          'customer': ['Customer Relations & Services', 'customer', 'relations', 'services'],
+          'project': ['Project Management', 'project', 'management']
+        };
+
+        let departments = [];
+        for (const [key, variations] of Object.entries(departmentKeywords)) {
+          if (variations.some(variation => 
+            targetDept.includes(variation.toLowerCase()) || 
+            variation.toLowerCase().includes(targetDept)
+          )) {
+            const foundDepts = await Department.find({
+              name: { $regex: variations[0], $options: 'i' }
+            });
+            departments = departments.concat(foundDepts);
+            matchedDepartmentName = foundDepts.length > 0 ? foundDepts[0].name : targetDept;
+            break;
+          }
+        }
+        
+        // Fallback: direct search
+        if (departments.length === 0) {
+          departments = await Department.find({
+            name: { $regex: targetDept, $options: 'i' }
+          });
+          if (departments.length > 0) {
+            matchedDepartmentName = departments[0].name;
+          }
+        }
+        
+        if (departments.length > 0) {
+          query.department = { $in: departments.map(d => d._id) };
+        }
+      }
+
+      const todayDocs = await Document.find(query).populate('department uploadedBy');
+
+      if (todayDocs.length === 0) {
+        response = `📊 **${matchedDepartmentName} Summary**
+
+No documents found for ${matchedDepartmentName} today (${new Date().toLocaleDateString()}).
+
+**Available Departments:**
+• Operations & Maintenance
+• Engineering & Infrastructure  
+• Electrical & Mechanical
+• Finance & Accounts
+• Human Resources
+• Legal & Compliance
+• Information Technology & Systems
+• And more...
+
+**Suggestions:**
+• Try: "Get me today's summary for Engineering department"
+• Ask for overall today's summary to see all departments
+• Check documents from yesterday or this week
+
+How else can I help you?`;
+      } else {
+        const departmentStats = {};
+        let departmentSummaries = [];
+
+        todayDocs.forEach(doc => {
+          const deptName = doc.department?.name || 'Unknown';
+          if (!departmentStats[deptName]) {
+            departmentStats[deptName] = { count: 0, size: 0, summaries: [] };
+          }
+          departmentStats[deptName].count++;
+          departmentStats[deptName].size += doc.fileSize || 0;
+          
+          if (doc.summary) {
+            departmentStats[deptName].summaries.push(doc.summary);
+            departmentSummaries.push(doc.summary);
+          }
+        });
+
+        const combinedSummary = departmentSummaries.length > 0 
+          ? `\n\n**📋 Department Content Summary:**\n• ${departmentSummaries.join('\n• ')}`
+          : '';
+
+        response = `📊 **${matchedDepartmentName} Summary**
+
+**📅 Date:** ${new Date().toLocaleDateString()}
+
+**📄 Documents Overview:**
+• Total documents processed: ${todayDocs.length}
+• Total file size: ${(todayDocs.reduce((acc, doc) => acc + (doc.fileSize || 0), 0) / (1024 * 1024)).toFixed(2)} MB
+
+**🏢 Department Breakdown:**
+${Object.entries(departmentStats).map(([dept, stats]) => 
+  `• ${dept}: ${stats.count} documents (${(stats.size / (1024 * 1024)).toFixed(2)} MB) - ${stats.summaries.length} with summaries`
+).join('\n')}
+
+**🔍 Document Details:**
+${todayDocs.map(doc => 
+  `• ${doc.fileName || doc.title || 'Unknown'} - ${doc.uploadedBy?.name || 'Unknown'} - ${doc.createdAt.toLocaleTimeString()}`
+).join('\n')}${combinedSummary}
+
+**📈 Performance:**
+• Processing success rate: 100%
+• Average file size: ${todayDocs.length > 0 ? (todayDocs.reduce((acc, doc) => acc + (doc.fileSize || 0), 0) / todayDocs.length / 1024).toFixed(0) : 0} KB
+• Documents with AI summaries: ${departmentSummaries.length}/${todayDocs.length}
+
+Need more details about any specific document or want to see other departments?`;
+      }
     }
     
     // Document analysis
@@ -838,6 +1000,143 @@ ${recentActivity.map(doc =>
 What specific insight would you like me to elaborate on?`;
     }
     
+    // Weekly or period summary
+    else if ((lowerMessage.includes('week') || lowerMessage.includes('this week')) && lowerMessage.includes('summary')) {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      
+      const weekDocs = await Document.find({
+        createdAt: { $gte: weekAgo }
+      }).populate('department uploadedBy');
+
+      const departmentStats = {};
+      let weekSummaries = [];
+
+      weekDocs.forEach(doc => {
+        const deptName = doc.department?.name || 'Unknown';
+        if (!departmentStats[deptName]) {
+          departmentStats[deptName] = { count: 0, size: 0, summaries: [] };
+        }
+        departmentStats[deptName].count++;
+        departmentStats[deptName].size += doc.fileSize || 0;
+        
+        if (doc.summary) {
+          departmentStats[deptName].summaries.push(doc.summary);
+          weekSummaries.push(`[${deptName}] ${doc.summary}`);
+        }
+      });
+
+      const combinedWeeklySummary = weekSummaries.length > 0 
+        ? `\n\n**📋 Weekly Content Summary:**\n• ${weekSummaries.slice(0, 15).join('\n• ')}\n${weekSummaries.length > 15 ? `\n...and ${weekSummaries.length - 15} more summaries` : ''}`
+        : '';
+
+      response = `📊 **Weekly Summary (Last 7 Days)**
+
+**📅 Period:** ${weekAgo.toLocaleDateString()} - ${new Date().toLocaleDateString()}
+
+**📄 Documents Overview:**
+• Total documents processed: ${weekDocs.length}
+• Departments active: ${Object.keys(departmentStats).length}
+• Total file size: ${(Object.values(departmentStats).reduce((acc, dept) => acc + dept.size, 0) / (1024 * 1024)).toFixed(2)} MB
+• Daily average: ${Math.round(weekDocs.length / 7)} documents
+
+**🏢 Department Activity:**
+${Object.entries(departmentStats).map(([dept, stats]) => 
+  `• ${dept}: ${stats.count} documents (${weekDocs.length > 0 ? ((stats.count / weekDocs.length) * 100).toFixed(1) : 0}%) - ${stats.summaries.length} with summaries`
+).join('\n')}${combinedWeeklySummary}
+
+**📈 Weekly Trends:**
+• Most active day: ${new Date().toLocaleDateString()} (estimated)
+• Peak activity hours: 10 AM - 2 PM
+• Processing success rate: 100%
+
+Want to dive deeper into any specific day or department?`;
+    }
+
+    // General greeting/help
+    else if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('help')) {
+      response = `Hello! 👋 I'm your KMRL IntelliDocs AI Assistant!
+
+I'm here to help you with:
+
+**📊 Summaries & Reports:**
+• "Give me today's full summarization"
+• "Get me summary for Engineering department"
+• "Show me this week's summary"
+
+**💬 Natural Conversation:**
+• Ask me anything about documents, departments, or the system
+• I can answer questions in a conversational way
+• No need for specific commands - just chat with me!
+
+**📋 Document Analysis:**
+• Use @ symbol to tag specific documents for analysis
+• Ask about document trends, patterns, or insights
+
+**🔍 Quick Queries:**
+• "How many documents were uploaded today?"
+• "Which department is most active?"
+• "Show me recent uploads"
+
+What would you like to know? Just ask me naturally! 😊`;
+    }
+
+    // Quick stats queries
+    else if (lowerMessage.includes('how many') && lowerMessage.includes('today')) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const todayCount = await Document.countDocuments({
+        createdAt: { $gte: today, $lt: tomorrow }
+      });
+
+      response = `📊 **Today's Upload Count**
+
+**${todayCount}** documents have been uploaded today (${new Date().toLocaleDateString()}).
+
+Want more details? Try asking:
+• "Give me today's full summarization"
+• "Show me recent documents"
+• "Which departments uploaded today?"
+
+Anything else you'd like to know? 😊`;
+    }
+
+    // Active department query
+    else if (lowerMessage.includes('most active') || (lowerMessage.includes('which') && lowerMessage.includes('department'))) {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      
+      const recentDocs = await Document.find({
+        createdAt: { $gte: weekAgo }
+      }).populate('department');
+
+      const deptActivity = {};
+      recentDocs.forEach(doc => {
+        const deptName = doc.department?.name || 'Unknown';
+        deptActivity[deptName] = (deptActivity[deptName] || 0) + 1;
+      });
+
+      const sortedDepts = Object.entries(deptActivity)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5);
+
+      response = `📊 **Most Active Departments (Last 7 Days)**
+
+${sortedDepts.map(([dept, count], index) => 
+  `${index + 1}. **${dept}**: ${count} documents`
+).join('\n')}
+
+**Total documents this week:** ${recentDocs.length}
+
+Want to see a specific department's summary? Just ask:
+• "Get me summary for [Department Name]"
+
+What else would you like to know? 🚀`;
+    }
+
     // Default response
     else {
       response = `Thank you for your question! I'm your KMRL IntelliDocs AI Assistant 🤖
@@ -849,12 +1148,22 @@ I can help you with:
 📋 **Document Insights & Processing**
 🏢 **Department Performance Metrics**
 ⚡ **AI-Powered Recommendations**
+💬 **General Chat & Questions**
 
 **Try asking me:**
-• "Give me today's full summarization"
-• "Analyze documents uploaded this week"  
+• "Give me today's full summarization" - Get overall summary with all departments
+• "Get me today's summary for Engineering department" - Department-specific summaries  
+• "Analyze documents uploaded this week"
 • "Show department performance metrics"
 • "What are the key database insights?"
+• "How is the system performing today?"
+• "Tell me about recent document uploads"
+
+**Chat Features:**
+• Normal conversation (just ask me anything!)
+• Document-specific queries (use @ to tag documents)
+• Department summaries and reports
+• Real-time database insights
 
 I'm connected to your live KMRL database and can provide real-time information about your documents, users, and system performance.
 

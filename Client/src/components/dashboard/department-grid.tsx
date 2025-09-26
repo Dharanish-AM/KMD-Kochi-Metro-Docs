@@ -3,6 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { 
   Building2, 
   Users, 
@@ -16,7 +22,10 @@ import {
   Zap,
   Truck,
   UserCheck,
-  ExternalLink
+  ExternalLink,
+  Edit,
+  Trash2,
+  MoreHorizontal
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
@@ -70,9 +79,12 @@ interface Department {
 interface DepartmentGridProps {
   onDepartmentClick: (department: Department) => void
   departments: Department[]
+  onEditDepartment?: (department: Department) => void
+  onDeleteDepartment?: (department: Department) => void
+  showActions?: boolean
 }
 
-export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGridProps) {
+export function DepartmentGrid({ onDepartmentClick, departments, onEditDepartment, onDeleteDepartment, showActions = false }: DepartmentGridProps) {
   const navigate = useNavigate()
 
   const handleDepartmentAccess = (department: Department) => {
@@ -240,6 +252,48 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
                   View Users
                   <div className="absolute inset-0 rounded-xl bg-blue-500/5 opacity-0 hover:opacity-100 transition-opacity duration-300" />
                 </Button>
+                
+                {/* Actions Menu - only show if showActions is true */}
+                {showActions && (onEditDepartment || onDeleteDepartment) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-11 w-11 border-2 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-400 transition-all duration-300 rounded-xl"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      {onEditDepartment && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditDepartment(department);
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Department
+                        </DropdownMenuItem>
+                      )}
+                      {onDeleteDepartment && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteDepartment(department);
+                          }}
+                          className="cursor-pointer text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Department
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </CardContent>
           </Card>

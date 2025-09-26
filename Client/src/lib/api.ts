@@ -61,6 +61,28 @@ export const departmentAPI = {
 //       throw error;
 //     }
 //   },
+
+  // Update department
+  updateDepartment: async (id: string, data: { name: string; description?: string }): Promise<{ message: string; department: DepartmentFromAPI }> => {
+    try {
+      const response = await axiosInstance.put(`/api/departments/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update department:', error);
+      throw error;
+    }
+  },
+
+  // Delete department
+  deleteDepartment: async (id: string): Promise<{ message: string }> => {
+    try {
+      const response = await axiosInstance.delete(`/api/departments/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to delete department:', error);
+      throw error;
+    }
+  },
 };
 
 // Utility function to transform API data to UI format
@@ -206,6 +228,30 @@ export interface DocumentFromAPI {
 }
 
 export const documentAPI = {
+  // Get all documents with pagination and filters
+  getAllDocuments: async (params?: {
+    page?: number;
+    limit?: number;
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    department?: string;
+    search?: string;
+  }): Promise<{
+    documents: DocumentFromAPI[];
+    totalDocuments: number;
+    totalPages: number;
+    currentPage: number;
+  }> => {
+    try {
+      const response = await axiosInstance.get('/api/documents/all', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch all documents:', error);
+      throw error;
+    }
+  },
+
   // Get documents by user ID
   getDocumentsByUser: async (userId: string): Promise<DocumentFromAPI[]> => {
     try {

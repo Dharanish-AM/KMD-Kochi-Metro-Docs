@@ -9,6 +9,8 @@ import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { LanguageSwitcher } from "@/components/ui/language-switcher"
 import { LanguageProvider, useLanguage } from "@/contexts/LanguageContext"
+import { documentAPI } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 import {
   Select,
   SelectContent,
@@ -33,8 +35,45 @@ import {
   BookOpen,
   Target,
   Shield,
-  Zap
+  Zap,
+  User
 } from "lucide-react"
+
+interface DocumentFromAPI {
+  _id: string
+  title: string
+  description?: string
+  fileName: string
+  fileType: string
+  fileSize: number
+  fileUrl: string
+  summary?: string
+  summary_ml?: string
+  originalText?: string
+  translatedText?: string
+  translated_text?: string
+  detectedLanguage?: string
+  detected_language?: string
+  classification: string
+  classification_labels?: string[]
+  classification_scores?: number[]
+  metadata?: any
+  tags?: string[]
+  version?: number
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+  uploadedBy: {
+    _id: string
+    name: string
+    email: string
+  }
+  department: {
+    _id: string
+    name: string
+  }
+  createdAt: string
+  updatedAt: string
+  uploadedAt?: string
+}
 
 interface ImportantPoint {
   id: string
@@ -43,14 +82,101 @@ interface ImportantPoint {
   description: string
   descriptionMl?: string
   department: string
+  departmentId: string
   documentName: string
   documentId: string
   category: "safety" | "procedure" | "policy" | "regulation" | "guideline" | "warning" | "requirement" | "security"
   priority: "high" | "medium" | "low"
   extractedDate: string
   tags: string[]
-  pageNumber?: number
   confidence: number
+  uploadedBy: string
+  status: string
+  fileSize: number
+  fileType: string
+}
+
+// Function to transform API documents to ImportantPoint format
+const transformDocumentToImportantPoint = (doc: DocumentFromAPI): ImportantPoint[] => {
+  const points: ImportantPoint[] = []
+  
+  // Extract important points from summary
+  if (doc.summary) {
+    // Split summary into sentences and filter for important ones
+    const sentences = doc.summary.split(/[.!?]+/).filter(s => s.trim().length > 20)
+    
+    sentences.forEach((sentence, index) => {
+      if (sentence.trim()) {
+        // Determine category based on classification and content
+        let category: ImportantPoint['category'] = 'guideline'
+        const lowerText = sentence.toLowerCase()
+        
+        if (lowerText.includes('safety') || lowerText.includes('danger') || lowerText.includes('risk')) category = 'safety'
+        else if (lowerText.includes('procedure') || lowerText.includes('process') || lowerText.includes('step')) category = 'procedure'
+        else if (lowerText.includes('policy') || lowerText.includes('rule')) category = 'policy'
+        else if (lowerText.includes('regulation') || lowerText.includes('compliance') || lowerText.includes('mandatory')) category = 'regulation'
+        else if (lowerText.includes('warning') || lowerText.includes('alert') || lowerText.includes('caution')) category = 'warning'
+        else if (lowerText.includes('requirement') || lowerText.includes('must') || lowerText.includes('required')) category = 'requirement'
+        else if (lowerText.includes('security') || lowerText.includes('access') || lowerText.includes('password')) category = 'security'
+        
+        // Determine priority based on keywords
+        let priority: ImportantPoint['priority'] = 'medium'
+        if (lowerText.includes('urgent') || lowerText.includes('critical') || lowerText.includes('immediate')) priority = 'high'
+        else if (lowerText.includes('minor') || lowerText.includes('optional') || lowerText.includes('suggested')) priority = 'low'
+        
+        points.push({
+          id: `${doc._id}_${index}`,
+          title: sentence.trim().substring(0, 100) + (sentence.length > 100 ? '...' : ''),
+          description: sentence.trim(),
+          department: doc.department?.name || 'Unknown Department',
+          departmentId: doc.department?._id || '',
+          documentName: doc.title,
+          documentId: doc._id,
+          category,
+          priority,
+          extractedDate: new Date(doc.createdAt).toISOString().split('T')[0],
+          tags: doc.tags || [doc.classification?.toLowerCase() || 'general'],
+          confidence: 0.85,
+          uploadedBy: doc.uploadedBy?.name || 'Unknown',
+          status: doc.status || 'APPROVED',
+          fileSize: doc.fileSize,
+          fileType: doc.fileType
+        })
+      }
+    })
+  }
+  
+  return points
+}
+
+// API function to fetch today's documents
+const fetchTodaysDocuments = async (): Promise<ImportantPoint[]> => {
+  try {
+    const today = new Date()
+    const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
+    const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
+    
+    const response = await documentAPI.getAllDocuments({
+      page: 1,
+      limit: 50,
+      dateFrom: startOfDay,
+      dateTo: endOfDay,
+      status: 'APPROVED'
+    })
+    
+    const documents: DocumentFromAPI[] = response.documents || []
+    const allPoints: ImportantPoint[] = []
+    
+    documents.forEach(doc => {
+      const points = transformDocumentToImportantPoint(doc)
+      allPoints.push(...points)
+    })
+    
+    return allPoints
+  } catch (error) {
+    console.error('Error fetching today\'s documents:', error)
+    throw new Error('Failed to fetch important points')
+  }
 }
 
 const mockImportantPoints: ImportantPoint[] = [
@@ -67,8 +193,12 @@ const mockImportantPoints: ImportantPoint[] = [
     priority: "high",
     extractedDate: "2024-01-15T10:30:00Z",
     tags: ["signal-failure", "speed-restriction", "manual-override", "track-a3-b7"],
-    pageNumber: 2,
-    confidence: 0.95
+    confidence: 0.95,
+    departmentId: "dept_001",
+    uploadedBy: "Station Master",
+    status: "APPROVED",
+    fileSize: 2048,
+    fileType: "pdf"
   },
   {
     id: "2",
@@ -83,8 +213,12 @@ const mockImportantPoints: ImportantPoint[] = [
     priority: "high",
     extractedDate: "2024-01-14T14:20:00Z",
     tags: ["brake-system", "efficiency-reduction", "stopping-distance", "br-204"],
-    pageNumber: 8,
-    confidence: 0.92
+    confidence: 0.92,
+    departmentId: "dept_002",
+    uploadedBy: "Maintenance Engineer",
+    status: "APPROVED",
+    fileSize: 1536,
+    fileType: "pdf"
   },
   {
     id: "3",
@@ -99,8 +233,12 @@ const mockImportantPoints: ImportantPoint[] = [
     priority: "medium",
     extractedDate: "2024-01-13T09:15:00Z",
     tags: ["water-logging", "monsoon", "track-suspension", "rainfall-limit"],
-    pageNumber: 12,
-    confidence: 0.88
+    confidence: 0.88,
+    departmentId: "dept_003",
+    uploadedBy: "Track Inspector",
+    status: "APPROVED",
+    fileSize: 3072,
+    fileType: "pdf"
   },
   {
     id: "4",
@@ -115,8 +253,12 @@ const mockImportantPoints: ImportantPoint[] = [
     priority: "high",
     extractedDate: "2024-01-12T16:45:00Z",
     tags: ["voltage-fluctuation", "reduced-power", "zone-3", "electrical-supply"],
-    pageNumber: 5,
-    confidence: 0.94
+    confidence: 0.94,
+    departmentId: "dept_004",
+    uploadedBy: "Electrical Engineer",
+    status: "APPROVED",
+    fileSize: 2560,
+    fileType: "pdf"
   },
   {
     id: "5",
@@ -131,8 +273,12 @@ const mockImportantPoints: ImportantPoint[] = [
     priority: "high",
     extractedDate: "2024-01-11T11:30:00Z",
     tags: ["platform-doors", "manual-approval", "kaloor-station", "safety-protocol"],
-    pageNumber: 3,
-    confidence: 0.91
+    confidence: 0.91,
+    departmentId: "dept_005",
+    uploadedBy: "Station Manager",
+    status: "APPROVED",
+    fileSize: 1024,
+    fileType: "pdf"
   }
 ]
 
@@ -164,12 +310,61 @@ const categories = [
 
 export function ImportantPointsPage() {
   const { language, t } = useLanguage()
-  const [points, setPoints] = useState<ImportantPoint[]>(mockImportantPoints)
-  const [filteredPoints, setFilteredPoints] = useState<ImportantPoint[]>(mockImportantPoints)
+  const { toast } = useToast()
+  const [points, setPoints] = useState<ImportantPoint[]>([])
+  const [filteredPoints, setFilteredPoints] = useState<ImportantPoint[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedDepartment, setSelectedDepartment] = useState("All Departments")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedPriority, setSelectedPriority] = useState("all")
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [availableDepartments, setAvailableDepartments] = useState<string[]>(["All Departments"])
+
+  // Fetch today's important points on component mount
+  useEffect(() => {
+    const loadTodaysPoints = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        const todaysPoints = await fetchTodaysDocuments()
+        
+        if (todaysPoints.length === 0) {
+          // If no documents found for today, use mock data as fallback
+          setPoints(mockImportantPoints)
+          toast({
+            title: "No Documents Found",
+            description: "No documents uploaded today. Showing sample data.",
+            variant: "default"
+          })
+        } else {
+          setPoints(todaysPoints)
+          // Extract unique departments from the points
+          const uniqueDepartments = ["All Departments", ...Array.from(new Set(todaysPoints.map(point => point.department)))]
+          setAvailableDepartments(uniqueDepartments)
+          toast({
+            title: "Important Points Loaded",
+            description: `Found ${todaysPoints.length} important points from today's documents.`,
+            variant: "default"
+          })
+        }
+      } catch (err) {
+        console.error('Failed to load today\'s points:', err)
+        setError('Failed to load important points')
+        // Use mock data as fallback
+        setPoints(mockImportantPoints)
+        toast({
+          title: "Error Loading Data",
+          description: "Could not load today's documents. Showing sample data.",
+          variant: "destructive"
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadTodaysPoints()
+  }, [toast])
 
   useEffect(() => {
     let filtered = points
@@ -270,6 +465,31 @@ export function ImportantPointsPage() {
         <Header title="Important Points" />
         <main className="p-6 space-y-6">
           <div className="max-w-7xl mx-auto">
+            {/* Loading State */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center space-y-4">
+                  <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+                  <p className="text-gray-600">Loading today's important points...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !isLoading && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Data</h3>
+                <p className="text-red-600 mb-4">{error}</p>
+                <Button onClick={() => window.location.reload()} variant="outline">
+                  Try Again
+                </Button>
+              </div>
+            )}
+
+            {/* Main Content */}
+            {!isLoading && !error && (
+              <>
             {/* Header Section */}
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 rounded-lg p-6 border mb-6">
               <div className="flex items-center justify-between">
@@ -288,9 +508,17 @@ export function ImportantPointsPage() {
                 </div>
                 <div className="flex items-center space-x-3">
                   <LanguageSwitcher />
-                  <Button variant="outline">
-                    <Download className="h-4 w-4 mr-2" />
-                    {t('route.clearance.report')}
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.location.reload()}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <div className="animate-spin w-4 h-4 mr-2 border-2 border-gray-500 border-t-transparent rounded-full" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    Refresh Data
                   </Button>
                   <Button>
                     <Share2 className="h-4 w-4 mr-2" />
@@ -384,7 +612,7 @@ export function ImportantPointsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {departments.map((dept) => (
+                        {availableDepartments.map((dept) => (
                           <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                         ))}
                       </SelectContent>
@@ -478,12 +706,10 @@ export function ImportantPointsPage() {
                                   <FileText className="h-4 w-4" />
                                   {point.documentName}
                                 </span>
-                                {point.pageNumber && (
-                                  <span className="flex items-center gap-1">
-                                    <BookOpen className="h-4 w-4" />
-                                    Page {point.pageNumber}
-                                  </span>
-                                )}
+                                <span className="flex items-center gap-1">
+                                  <User className="h-4 w-4" />
+                                  {point.uploadedBy}
+                                </span>
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-4 w-4" />
                                   {formatDate(point.extractedDate)}
@@ -525,6 +751,8 @@ export function ImportantPointsPage() {
                   Load More Points
                 </Button>
               </div>
+            )}
+              </>
             )}
           </div>
         </main>

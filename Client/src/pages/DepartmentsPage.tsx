@@ -4,6 +4,8 @@ import { Header } from "@/components/layout/header"
 import { DepartmentGrid } from "@/components/dashboard/department-grid"
 import { departmentAPI, transformDepartmentData } from "@/lib/api"
 import { CustomCreateDepartmentDialog } from "@/components/departments/custom-create-department-dialog"
+import { EditDepartmentDialog } from "@/components/departments/edit-department-dialog"
+import { DeleteDepartmentDialog } from "@/components/departments/delete-department-dialog"
 import axiosInstance from "@/Utils/Auth/axiosInstance"
 import { showToast } from "@/Utils/toaster"
 import { Search, Filter, Grid3X3, List, RefreshCw, Building2, Users, FileText, TrendingUp, Activity, Sparkles, Plus } from "lucide-react"
@@ -32,6 +34,10 @@ export function DepartmentsPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [filteredDepartments, setFilteredDepartments] = useState<Department[]>([])
   const [refreshing, setRefreshing] = useState(false)
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null)
+  const [deletingDepartment, setDeletingDepartment] = useState<Department | null>(null)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   // Fetch departments from API
   const fetchDepartments = async () => {
@@ -101,6 +107,24 @@ export function DepartmentsPage() {
     } finally {
       setRefreshing(false)
     }
+  }
+
+  const handleEditDepartment = (department: Department) => {
+    setEditingDepartment(department)
+    setShowEditDialog(true)
+  }
+
+  const handleDeleteDepartment = (department: Department) => {
+    setDeletingDepartment(department)
+    setShowDeleteDialog(true)
+  }
+
+  const handleDepartmentUpdated = () => {
+    fetchDepartments()
+  }
+
+  const handleDepartmentDeleted = () => {
+    fetchDepartments()
   }
 
   const totalDocs = filteredDepartments.reduce((sum, dept) => sum + dept.totalDocs, 0)
@@ -466,6 +490,9 @@ export function DepartmentsPage() {
               <DepartmentGrid 
                 departments={filteredDepartments} 
                 onDepartmentClick={handleDepartmentClick}
+                onEditDepartment={handleEditDepartment}
+                onDeleteDepartment={handleDeleteDepartment}
+                showActions={true}
               />
             </div>
           </div>
@@ -485,6 +512,22 @@ export function DepartmentsPage() {
             }
           />
         </div>
+
+        {/* Edit Department Dialog */}
+        <EditDepartmentDialog
+          department={editingDepartment}
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+          onDepartmentUpdated={handleDepartmentUpdated}
+        />
+
+        {/* Delete Department Dialog */}
+        <DeleteDepartmentDialog
+          department={deletingDepartment}
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          onDepartmentDeleted={handleDepartmentDeleted}
+        />
       </div>
     </div>
   )
