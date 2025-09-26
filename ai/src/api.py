@@ -68,7 +68,15 @@ async def process_file(file: UploadFile):
 
     # --- Summarization ---
     logger.info("Summarizing text")
-    summary = summarize.summarize_text(translated_text)
+    summary_en = summarize.summarize_text(translated_text)
+
+    summary_ml = None
+    if detected_lang != "en" and detected_lang != "unknown":
+        try:
+            logger.info("Translating English summary back to Malayalam")
+            summary_ml = translate.translate_to_malayalam(summary_en)
+        except Exception as e:
+            logger.error(f"Failed to translate summary to Malayalam: {e}")
 
     # --- Return structured response ---
     return {
@@ -79,7 +87,8 @@ async def process_file(file: UploadFile):
         "classification": doc_class,
         "metadata": meta,
         "embedding_vector": embedding_vector,
-        "summary": summary,
+        "summary_en": summary_en,
+        "summary_ml": summary_ml,
     }
 
 
