@@ -113,22 +113,28 @@ exports.uploadDocument = async (req, res) => {
         console.log(`${department.name} department matched for document.`);
 
         // 🔹 Save document in MongoDB
-        const document = new Document({
+        const documentData = {
           uploadedBy: userId,
           department: user.department, // Use user's department directly
           fileUrl: `/uploads/${newFileName}`,
-          title: fields.title ? fields.title[0] : file.originalFilename, // Handle array format
+          title: fields.title ? fields.title[0] : file.originalFilename,
           fileName: file.originalFilename,
           fileType: file.mimetype,
           fileSize: file.size,
           summary,
-          classification: departmentName, // ensure string
+          classification: departmentName,
           classification_labels: classification?.labels || [],
           classification_scores: classification?.scores || [],
           metadata,
           translated_text,
           detected_language,
-        });
+        };
+
+        if (detected_language === "ml" && aiResponse.data.summary_ml) {
+          documentData.summary_ml = aiResponse.data.summary_ml;
+        }
+
+        const document = new Document(documentData);
 
         await document.save();
 
@@ -246,13 +252,7 @@ exports.getDocumentById = async (req, res) => {
       return res.status(404).json({ error: "Document not found" });
     }
 
-    res.status(200).json({ document });
-
-    if (!document) {
-      console.info(`No document found with ID: ${documentId}`);
-      return res.status(404).json({ error: "Document not found" });
-    }
-
+    // Only one success response
     res.status(200).json({ document });
   } catch (error) {
     console.error(

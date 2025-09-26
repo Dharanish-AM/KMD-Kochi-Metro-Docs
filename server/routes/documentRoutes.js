@@ -7,17 +7,6 @@ const {
   getAllDocuments,
   deleteDocument,
   downloadDocument,
-} = require("../controllers/documentController");
-
-router.post("/upload", uploadDocument);
-router.get("/all", getAllDocuments);
-router.get("/documents-by-department/:departmentId", getDocumentsByDepartment);
-router.get("/documents-by-user/:userId", getDocumentsByUser);
-router.get("/download/:documentId", downloadDocument);
-router.get("/:documentId", getDocumentById);
-router.delete("/:documentId", deleteDocument);
-// RAG Search and additional document operations
-const { 
   RAGSearchDocument, 
   DocumentPreview, 
   DownloadDocument,
@@ -26,6 +15,12 @@ const {
 } = require("../controllers/documentController");
 
 router.get("/rag-search", RAGSearchDocument);
+router.post("/upload", uploadDocument);
+router.get("/all", getAllDocuments);
+router.get("/documents-by-department/:departmentId", getDocumentsByDepartment);
+router.get("/documents-by-user/:userId", getDocumentsByUser);
+router.get("/download/:documentId", downloadDocument);
+router.delete("/:documentId", deleteDocument);
 router.get("/document-preview", DocumentPreview);
 router.get("/download-document", DownloadDocument);
 router.post("/chat-assistant", chatAssistant);

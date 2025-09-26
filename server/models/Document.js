@@ -46,6 +46,9 @@ const DocumentSchema = new Schema({
   summary: {
     type: String,
   },
+  summary_ml:{
+    type: String,
+  },
   fileName: {
     type: String,
     required: true,
