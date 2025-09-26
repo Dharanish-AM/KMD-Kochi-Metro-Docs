@@ -103,31 +103,53 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
   }
 
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-        {departments.map((department) => {
-          const Icon = departmentIcons[department.name as keyof typeof departmentIcons] || Building2
-          
-          return (
-            <Card 
-              key={department.id} 
-              className="group relative overflow-hidden border-0 bg-white dark:bg-gray-800 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-[1.02] hover:border-blue-200 dark:hover:border-blue-700"
-              onClick={() => onDepartmentClick(department)}
-            >
-              {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-900/20 dark:to-purple-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+    <div className="w-full">
+      {departments.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center">
+            <Building2 className="h-12 w-12 text-gray-400 dark:text-gray-500" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No departments found</h3>
+          <p className="text-gray-600 dark:text-gray-400">Try adjusting your search criteria or check back later.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {departments.map((department, index) => {
+            const Icon = departmentIcons[department.name as keyof typeof departmentIcons] || Building2
+            
+            return (
+              <Card 
+                key={department.id} 
+                className="group relative overflow-hidden border-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-xl hover:shadow-2xl transition-all duration-500 cursor-pointer transform hover:scale-[1.03] hover:-translate-y-2"
+                onClick={() => onDepartmentClick(department)}
+                style={{ 
+                  animationDelay: `${index * 150}ms`,
+                  animation: 'fadeInUp 0.6s ease-out forwards'
+                }}
+              >
+              {/* Enhanced Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 dark:from-blue-400/10 dark:via-purple-400/10 dark:to-pink-400/10 opacity-0 group-hover:opacity-100 transition-all duration-500" />
+              
+              {/* Animated border */}
+              <div className="absolute inset-0 rounded-2xl border-2 border-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)', maskComposite: 'subtract' }} />
+              
+              {/* Floating particles effect */}
+              <div className="absolute top-4 right-4 w-2 h-2 bg-blue-400 rounded-full opacity-0 group-hover:opacity-100 animate-ping transition-opacity duration-500" />
+              <div className="absolute top-6 right-8 w-1 h-1 bg-purple-400 rounded-full opacity-0 group-hover:opacity-100 animate-ping transition-opacity duration-700" style={{ animationDelay: '200ms' }} />
               
               <CardHeader className="pb-4 relative z-10">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg flex-shrink-0">
-                      <Icon className="h-6 w-6 text-white" />
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center space-x-4 flex-1 min-w-0">
+                    <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-xl flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                      <Icon className="h-7 w-7 text-white" />
+                      <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                      <CardTitle className="text-xl font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
                         {department.name}
                       </CardTitle>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                         Updated {department.lastUpdated}
                       </p>
                     </div>
@@ -142,22 +164,24 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
               </CardHeader>
             
             <CardContent className="relative z-10 pt-0">
-              {/* Statistics Grid */}
+              {/* Enhanced Statistics Grid */}
               <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                  <p className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
+                <div className="relative text-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 rounded-2xl border border-blue-100 dark:border-blue-800 group-hover:scale-105 transition-transform duration-300">
+                  <div className="absolute top-2 right-2 w-3 h-3 bg-blue-400 rounded-full opacity-60 animate-pulse" />
+                  <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
                     {department.totalDocs}
                   </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 font-medium">
-                    Total Docs
+                  <p className="text-xs text-blue-700 dark:text-blue-300 font-semibold">
+                    Total Documents
                   </p>
                 </div>
-                <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                  <p className="text-2xl sm:text-3xl font-bold text-orange-500 dark:text-orange-400">
+                <div className="relative text-center p-4 bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-900/30 dark:to-yellow-900/30 rounded-2xl border border-orange-100 dark:border-orange-800 group-hover:scale-105 transition-transform duration-300">
+                  <div className="absolute top-2 right-2 w-3 h-3 bg-orange-400 rounded-full opacity-60 animate-pulse" />
+                  <p className="text-3xl font-bold text-orange-500 dark:text-orange-400 mb-1">
                     {department.pendingDocs}
                   </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 font-medium">
-                    Pending
+                  <p className="text-xs text-orange-700 dark:text-orange-300 font-semibold">
+                    Pending Review
                   </p>
                 </div>
               </div>
@@ -190,32 +214,31 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-2">
+              {/* Enhanced Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button 
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200 text-sm font-medium" 
-                  size="sm" 
+                  className="flex-1 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 hover:from-blue-700 hover:via-purple-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 text-sm font-semibold rounded-xl h-11 transform hover:scale-105" 
                   onClick={(e) => {
                     e.stopPropagation();
                     const departmentPath = `/${department.slug}`;
                     window.open(departmentPath, '_blank');
-                    //new page
                   }}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Dashboard
+                  Open Dashboard
+                  <div className="absolute inset-0 rounded-xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </Button>
                 <Button 
                   variant="outline" 
-                  size="sm" 
-                  className="flex-1 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-200 text-sm font-medium"
+                  className="flex-1 border-2 border-gray-200 dark:border-gray-600 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-blue-900/30 text-gray-700 dark:text-gray-300 hover:border-blue-400 dark:hover:border-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all duration-300 text-sm font-semibold rounded-xl h-11 transform hover:scale-105"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleSeeAllUsers(department);
                   }}
                 >
                   <Users className="h-4 w-4 mr-2" />
-                  See All Users
+                  View Users
+                  <div className="absolute inset-0 rounded-xl bg-blue-500/5 opacity-0 hover:opacity-100 transition-opacity duration-300" />
                 </Button>
               </div>
             </CardContent>
@@ -223,6 +246,7 @@ export function DepartmentGrid({ onDepartmentClick, departments }: DepartmentGri
         )
       })}
     </div>
-  </div>
+      )}
+    </div>
   )
 }

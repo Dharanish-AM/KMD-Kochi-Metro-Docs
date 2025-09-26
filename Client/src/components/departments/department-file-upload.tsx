@@ -20,7 +20,18 @@ import {
   Download,
   Calendar,
   User,
-  FolderOpen
+  FolderOpen,
+  Image,
+  FileImage,
+  FileVideo,
+  FileAudio,
+  FileArchive,
+  FileSpreadsheet,
+  FileType,
+  Film,
+  Music,
+  Archive,
+  Code
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import axiosInstance from "@/Utils/Auth/axiosInstance"
@@ -38,6 +49,7 @@ interface UploadFile {
   status: "pending" | "uploading" | "completed" | "error"
   description?: string
   category?: string
+  preview?: string // For image files
 }
 
 // Department theme configuration
@@ -299,6 +311,49 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
   const theme = departmentThemes[department as keyof typeof departmentThemes] || departmentThemes["Engineering"]
   const categories = fileCategories[department as keyof typeof fileCategories] || fileCategories["Engineering"]
 
+  // Get appropriate icon for file type
+  const getFileIcon = (fileName: string, mimeType?: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase()
+    
+    // Image files
+    if (mimeType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'tiff', 'ico'].includes(extension || '')) {
+      return <FileImage className="h-5 w-5 text-blue-500" />
+    }
+    
+    // Video files
+    if (mimeType?.startsWith('video/') || ['mp4', 'avi', 'mov', 'webm', 'ogv', 'mkv', 'flv'].includes(extension || '')) {
+      return <Film className="h-5 w-5 text-purple-500" />
+    }
+    
+    // Audio files
+    if (mimeType?.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac'].includes(extension || '')) {
+      return <Music className="h-5 w-5 text-green-500" />
+    }
+    
+    // Archive files
+    if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2'].includes(extension || '')) {
+      return <Archive className="h-5 w-5 text-orange-500" />
+    }
+    
+    // Spreadsheet files
+    if (['xls', 'xlsx', 'csv'].includes(extension || '')) {
+      return <FileSpreadsheet className="h-5 w-5 text-green-600" />
+    }
+    
+    // Code files
+    if (['js', 'ts', 'html', 'css', 'json', 'xml', 'py', 'java', 'cpp', 'c'].includes(extension || '')) {
+      return <Code className="h-5 w-5 text-indigo-500" />
+    }
+    
+    // Document files
+    if (['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(extension || '')) {
+      return <FileText className="h-5 w-5 text-red-500" />
+    }
+    
+    // Default file icon
+    return <FileType className="h-5 w-5 text-gray-500" />
+  }
+
   // Fetch current user and their documents
   useEffect(() => {
     const fetchUserDocuments = async () => {
@@ -343,18 +398,63 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
     }
   }
 
-  const handleFiles = (newFiles: File[]) => {
+  const handleFiles = async (newFiles: File[]) => {
     // Validate file types and size
     const validFiles = newFiles.filter(file => {
       const maxSize = 50 * 1024 * 1024; // 50MB as per backend
       const allowedTypes = [
+        // Document types
         'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/msword',
-        'text/plain',
-        'image/jpeg',
-        'image/png',
-        'image/jpg'
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+        'application/msword', // .doc
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel', // .xls
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+        'application/vnd.ms-powerpoint', // .ppt
+        'text/plain', // .txt
+        'text/csv', // .csv
+        'application/rtf', // .rtf
+        
+        // Image types
+        'image/jpeg',  // .jpg, .jpeg
+        'image/png',   // .png
+        'image/gif',   // .gif
+        'image/bmp',   // .bmp
+        'image/webp',  // .webp
+        'image/svg+xml', // .svg
+        'image/tiff',  // .tiff
+        'image/x-icon', // .ico
+        
+        // Archive types
+        'application/zip', // .zip
+        'application/x-rar-compressed', // .rar
+        'application/x-7z-compressed', // .7z
+        'application/x-tar', // .tar
+        'application/gzip', // .gz
+        
+        // Audio types
+        'audio/mpeg', // .mp3
+        'audio/wav', // .wav
+        'audio/ogg', // .ogg
+        'audio/aac', // .aac
+        'audio/mp4', // .m4a
+        
+        // Video types
+        'video/mp4', // .mp4
+        'video/avi', // .avi
+        'video/quicktime', // .mov
+        'video/x-msvideo', // .avi
+        'video/webm', // .webm
+        'video/ogg', // .ogv
+        
+        // Other formats
+        'application/json', // .json
+        'application/xml', // .xml
+        'text/xml', // .xml
+        'application/javascript', // .js
+        'text/css', // .css
+        'text/html', // .html
+        'application/octet-stream' // Generic binary files
       ];
 
       if (file.size > maxSize) {
@@ -367,9 +467,10 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
       }
 
       if (!allowedTypes.includes(file.type)) {
+        const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'unknown';
         toast({
-          title: "Invalid File Type",
-          description: `${file.name} is not a supported file type.`,
+          title: "Unsupported File Type",
+          description: `${fileExtension.toUpperCase()} files are not supported. Please upload documents, images, audio, video, or archive files.`,
           variant: "destructive"
         });
         return false;
@@ -378,16 +479,43 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
       return true;
     });
 
-    const uploadFiles: UploadFile[] = validFiles.map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-      progress: 0,
-      status: "pending" as const,
-      description: uploadDescription || file.name,
-      category: selectedCategory
-    }))
+    const uploadFiles: UploadFile[] = await Promise.all(
+      validFiles.map(async (file) => {
+        let preview: string | undefined;
+        
+        // Generate preview for image files
+        if (file.type.startsWith('image/')) {
+          try {
+            preview = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.readAsDataURL(file);
+            });
+          } catch (error) {
+            console.warn('Failed to generate image preview:', error);
+          }
+        }
+        
+        return {
+          id: Math.random().toString(36).substr(2, 9),
+          file,
+          progress: 0,
+          status: "pending" as const,
+          description: uploadDescription || file.name,
+          category: selectedCategory,
+          preview
+        };
+      })
+    )
 
     setFiles(prev => [...prev, ...uploadFiles])
+    
+    // Show success message
+    toast({
+      title: "Files Selected",
+      description: `${uploadFiles.length} file${uploadFiles.length > 1 ? 's' : ''} ready for upload`,
+      variant: "default"
+    })
   }
 
   const uploadFileToBackend = async (uploadFile: UploadFile) => {
@@ -680,9 +808,9 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
             onDragLeave={() => setIsDragging(false)}
           >
             <div className="space-y-4">
-              <div className={`mx-auto w-16 h-16 ${isDragging ? theme.accent : 'bg-gray-100 dark:bg-gray-700'} rounded-xl flex items-center justify-center transition-all duration-300`}>
-                <Upload className={`h-8 w-8 transition-colors ${
-                  isDragging ? "text-white" : "text-gray-400"
+              <div className={`mx-auto w-16 h-16 ${isDragging ? theme.accent : 'bg-gray-100 dark:bg-gray-700'} rounded-xl flex items-center justify-center transition-all duration-300 ${isDragging ? 'animate-bounce' : ''}`}>
+                <Upload className={`h-8 w-8 transition-all duration-300 ${
+                  isDragging ? "text-white animate-pulse" : "text-gray-400"
                 }`} />
               </div>
               <div className="space-y-2">
@@ -692,14 +820,40 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   or click the button below to browse files
                 </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  Supports: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX (Max 10MB per file)
+                <div className="flex flex-wrap justify-center gap-2 mt-4">
+                  <div className="flex items-center space-x-1 bg-white/50 dark:bg-gray-800/50 px-2 py-1 rounded-full text-xs">
+                    <FileText className="h-3 w-3 text-red-500" />
+                    <span>Documents</span>
+                  </div>
+                  <div className="flex items-center space-x-1 bg-white/50 dark:bg-gray-800/50 px-2 py-1 rounded-full text-xs">
+                    <FileImage className="h-3 w-3 text-blue-500" />
+                    <span>Images</span>
+                  </div>
+                  <div className="flex items-center space-x-1 bg-white/50 dark:bg-gray-800/50 px-2 py-1 rounded-full text-xs">
+                    <Film className="h-3 w-3 text-purple-500" />
+                    <span>Videos</span>
+                  </div>
+                  <div className="flex items-center space-x-1 bg-white/50 dark:bg-gray-800/50 px-2 py-1 rounded-full text-xs">
+                    <Music className="h-3 w-3 text-green-500" />
+                    <span>Audio</span>
+                  </div>
+                  <div className="flex items-center space-x-1 bg-white/50 dark:bg-gray-800/50 px-2 py-1 rounded-full text-xs">
+                    <Archive className="h-3 w-3 text-orange-500" />
+                    <span>Archives</span>
+                  </div>
+                  <div className="flex items-center space-x-1 bg-white/50 dark:bg-gray-800/50 px-2 py-1 rounded-full text-xs">
+                    <Code className="h-3 w-3 text-indigo-500" />
+                    <span>Code</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                  Maximum file size: 50MB per file
                 </p>
               </div>
               <input
                 type="file"
                 multiple
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.tiff,.ico,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.aac,.m4a,.mp4,.avi,.mov,.webm,.ogv,.json,.xml,.js,.css,.html"
                 onChange={handleFileInput}
                 className="hidden"
                 id="file-upload"
@@ -786,16 +940,46 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
           {/* File List */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <FileText className="h-5 w-5" />
-                <span>Selected Files</span>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FileText className="h-5 w-5" />
+                  <span>Selected Files ({files.length})</span>
+                </div>
+                {files.length > 0 && (
+                  <div className="flex items-center space-x-2 text-sm text-gray-500">
+                    <div className="flex items-center space-x-1">
+                      <span>Types:</span>
+                      {[...new Set(files.map(f => f.file.type.split('/')[0]))].map((type, index, array) => (
+                        <span key={type} className="capitalize">
+                          {type === 'application' ? 'docs' : type}
+                          {index < array.length - 1 && ', '}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {files.map((file) => (
                   <div key={file.id} className="flex items-center space-x-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                    <FileText className="h-10 w-10 text-blue-500 flex-shrink-0" />
+                    <div className="flex-shrink-0">
+                      {file.preview && file.file.type.startsWith('image/') ? (
+                        <div className="relative w-12 h-12 rounded-lg overflow-hidden border-2 border-white shadow-sm">
+                          <img 
+                            src={file.preview} 
+                            alt={file.file.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/10 rounded-lg"></div>
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 bg-white dark:bg-gray-600 rounded-lg flex items-center justify-center border shadow-sm">
+                          {getFileIcon(file.file.name, file.file.type)}
+                        </div>
+                      )}
+                    </div>
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-2">
@@ -912,7 +1096,9 @@ export const DepartmentFileUpload = ({ department }: DepartmentFileUploadProps) 
                     className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors"
                   >
                     <div className="flex items-center space-x-4 flex-1 min-w-0">
-                      <FileText className="h-10 w-10 text-blue-500 flex-shrink-0" />
+                      <div className="flex-shrink-0">
+                        {getFileIcon(document.fileName)}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between mb-1">
                           <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate pr-2">

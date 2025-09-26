@@ -296,7 +296,7 @@ exports.getDocumentsByUser = async (req, res) => {
 
 exports.getAllDocuments = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", department = "", status = "" } = req.query;
+    const { page = 1, limit = 10, search = "", department = "", status = "", fromDate = "", toDate = "" } = req.query;
     
     // Build query object
     let query = {};
@@ -313,6 +313,20 @@ exports.getAllDocuments = async (req, res) => {
     // Add department filter
     if (department) {
       query.classification = { $regex: department, $options: "i" };
+    }
+
+    // Add date range filter
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) {
+        query.createdAt.$gte = new Date(fromDate);
+      }
+      if (toDate) {
+        // Set to end of day for toDate
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = endDate;
+      }
     }
 
     // Calculate skip value for pagination
@@ -860,6 +874,141 @@ How can I assist you today? 🚀`;
     res.status(500).json({ 
       error: "I'm experiencing some technical difficulties. Please try again in a moment.",
       timestamp: new Date()
+    });
+  }
+};
+
+// Groq API Integration for Document Analysis
+exports.groqDocumentAnalysis = async (req, res) => {
+  try {
+    const { message, documents, requestType } = req.body;
+
+    if (!message || !documents || documents.length === 0) {
+      return res.status(400).json({ 
+        error: "Message and documents are required for analysis" 
+      });
+    }
+
+    // Prepare document context for Groq
+    const documentContext = documents.map(doc => {
+      return `
+Document: ${doc.title}
+Department: ${doc.department || 'Unknown'}
+Classification: ${doc.classification || 'Unknown'}
+Summary: ${doc.summary || 'No summary available'}
+Content: ${doc.content || 'Content not available'}
+---`;
+    }).join('\n');
+
+    // Create comprehensive prompt for Groq
+    const systemPrompt = `You are KMRL IntelliBot, an AI assistant for Kochi Metro Rail Limited (KMRL). 
+
+IMPORTANT: Answer ONLY what the user specifically asks for. Do not provide comprehensive analysis unless requested.
+
+Your response style:
+- Be concise and direct
+- Answer the exact question asked
+- Use professional tone
+- Provide specific information from the documents
+- Keep responses focused and relevant
+
+If the user asks for:
+- "Summarize" → Give a brief summary
+- "List points" → Provide a simple list
+- "Explain X" → Explain only X
+- "What is Y" → Define only Y
+- "Compare" → Show differences/similarities only
+
+Do not add extra analysis, recommendations, or insights unless specifically requested.`;
+
+    const userPrompt = `User Request: "${message}"
+
+Here are the documents to work with:
+${documentContext}
+
+Please respond EXACTLY to what the user asked for. Do not provide comprehensive analysis unless specifically requested. 
+
+Examples:
+- If they ask "Summarize this document" → Provide a concise summary only
+- If they ask "What are the key points?" → List key points only  
+- If they ask "Explain section 3" → Explain only that section
+- If they ask "Who is the author?" → Give just the author information
+- If they ask "When was this created?" → Provide just the date
+
+Respond directly and specifically to: "${message}"`;
+
+    // Make request to Groq API
+    const groqResponse = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.1-8b-instant', // or 'mixtral-8x7b-32768'
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          {
+            role: 'user', 
+            content: userPrompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 2048,
+        stream: false
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const analysis = groqResponse.data.choices[0]?.message?.content;
+
+    if (!analysis) {
+      throw new Error('No analysis received from Groq API');
+    }
+
+    // Log the interaction for monitoring
+    console.log(`Groq Analysis Request: ${message} | Documents: ${documents.length} | Response Length: ${analysis.length}`);
+
+    res.json({
+      analysis: analysis,
+      documentCount: documents.length,
+      timestamp: new Date(),
+      requestType: requestType || 'document_analysis'
+    });
+
+  } catch (error) {
+    console.error('Groq API Error:', error.response?.data || error.message);
+    
+    // Fallback response if Groq API fails
+    let fallbackResponse = "I apologize, but I'm currently experiencing issues with my advanced analysis capabilities. ";
+    
+    if (error.response?.status === 401) {
+      fallbackResponse += "The AI analysis service is not properly configured. Please contact your administrator.";
+    } else if (error.response?.status === 429) {
+      fallbackResponse += "The AI analysis service is currently at capacity. Please try again in a few minutes.";
+    } else {
+      fallbackResponse += `Here's a basic summary of your ${req.body.documents?.length || 0} document(s):
+
+${req.body.documents?.map((doc, index) => 
+  `**Document ${index + 1}: ${doc.title}**
+- Department: ${doc.department || 'Unknown'}
+- Classification: ${doc.classification || 'Unknown'}
+- Summary: ${doc.summary || 'Summary not available'}`
+).join('\n\n') || 'No documents provided'}
+
+For detailed analysis, please try again later or contact your system administrator.`;
+    }
+
+    res.status(200).json({
+      analysis: fallbackResponse,
+      documentCount: req.body.documents?.length || 0,
+      timestamp: new Date(),
+      requestType: req.body.requestType || 'document_analysis',
+      fallback: true
     });
   }
 };

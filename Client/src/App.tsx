@@ -18,6 +18,7 @@ import { DocumentsPage } from "./pages/DocumentsPage";
 import { AllUsersPage } from "./pages/AllUsersPage";
 import ImportantPointsPage from "./pages/ImportantPointsPage";
 import ChatAssistantPage from "./pages/ChatAssistantPage";
+import { RagSearchPage } from "./pages/RagSearchPage";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/documents" element={<ProtectedRoute adminOnly={true}><DocumentsPage /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute adminOnly={true}><AllUsersPage /></ProtectedRoute>} />
             <Route path="/important-points" element={<ProtectedRoute adminOnly={true}><ImportantPointsPage /></ProtectedRoute>} />
+            <Route path="/rag-search" element={<ProtectedRoute adminOnly={true}><RagSearchPage /></ProtectedRoute>} />
             <Route path="/chat-assistant" element={<ProtectedRoute adminOnly={true}><ChatAssistantPage /></ProtectedRoute>} />
             <Route path="/department/:departmentName" element={<ProtectedRoute><DepartmentPanel /></ProtectedRoute>} />
             <Route path="/users/:departmentId" element={<ProtectedRoute adminOnly={true}><UsersPage /></ProtectedRoute>} />

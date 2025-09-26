@@ -10,7 +10,8 @@ const {
   RAGSearchDocument, 
   DocumentPreview, 
   DownloadDocument,
-  chatAssistant
+  chatAssistant,
+  groqDocumentAnalysis
 } = require("../controllers/documentController");
 
 router.get("/rag-search", RAGSearchDocument);
@@ -23,5 +24,6 @@ router.delete("/:documentId", deleteDocument);
 router.get("/document-preview", DocumentPreview);
 router.get("/download-document", DownloadDocument);
 router.post("/chat-assistant", chatAssistant);
+router.post("/groq-analysis", groqDocumentAnalysis);
 
 module.exports = router;
