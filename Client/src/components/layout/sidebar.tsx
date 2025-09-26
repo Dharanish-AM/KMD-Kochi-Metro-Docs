@@ -20,7 +20,7 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { clearAuthData } from "@/Utils/Auth/token"
 
 const menuItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { id: "departments", label: "Departments", icon: Building2, path: "/departments" },
   { id: "documents", label: "Documents", icon: FileText, path: "/documents" },
   { id: "important-points", label: "Important Points", icon: Lightbulb, path: "/important-points" },
