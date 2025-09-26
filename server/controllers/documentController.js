@@ -121,7 +121,8 @@ exports.uploadDocument = async (req, res) => {
           fileName: file.originalFilename,
           fileType: file.mimetype,
           fileSize: file.size,
-          summary:summary_en,
+          summary: summary_en,
+          summary_ml: aiResponse.data.summary_ml || null,
           classification: departmentName,
           classification_labels: classification?.labels || [],
           classification_scores: classification?.scores || [],
@@ -129,10 +130,6 @@ exports.uploadDocument = async (req, res) => {
           translated_text,
           detected_language,
         };
-
-        if (detected_language === "ml" && aiResponse.data.summary_ml) {
-          documentData.summary_ml = aiResponse.data.summary_ml;
-        }
 
         const document = new Document(documentData);
 
@@ -381,12 +378,12 @@ exports.deleteDocument = async (req, res) => {
       return res.status(404).json({ error: "Document not found" });
     }
 
-    // Check if the user is the owner of the document
-    if (document.uploadedBy.toString() !== userId) {
-      return res
-        .status(403)
-        .json({ error: "Forbidden - You can only delete your own documents" });
-    }
+    // // Check if the user is the owner of the document
+    // if (document.uploadedBy.toString() !== userId) {
+    //   return res
+    //     .status(403)
+    //     .json({ error: "Forbidden - You can only delete your own documents" });
+    // }
 
     // Remove file from filesystem
     if (document.fileUrl) {
