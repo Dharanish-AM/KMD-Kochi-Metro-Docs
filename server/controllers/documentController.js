@@ -93,7 +93,8 @@ exports.uploadDocument = async (req, res) => {
         } = aiResponse.data;
 
         //print response from AI
-        // console.log(`User ${userId} - AI server response:`, aiResponse.data);
+
+        console.log(`User ${userId} - AI server response:`, aiResponse.data);
 
         const departmentName =
           typeof classification === "object"
@@ -115,7 +116,7 @@ exports.uploadDocument = async (req, res) => {
         // 🔹 Save document in MongoDB
         const documentData = {
           uploadedBy: userId,
-          department: user.department, // Use user's department directly
+          department: department._id, // Use AI returned primary_department
           fileUrl: `/uploads/${newFileName}`,
           title: fields.title ? fields.title[0] : file.originalFilename,
           fileName: file.originalFilename,
@@ -173,7 +174,7 @@ exports.uploadDocument = async (req, res) => {
           message: "Document uploaded, processed, and stored successfully",
           document,
           aiData: {
-            summary:summary_en,
+            summary: summary_en,
             classification,
             metadata,
             translated_text,
@@ -213,7 +214,7 @@ exports.getDocumentsByDepartment = async (req, res) => {
 
     const documents = await Document.find({ department: departmentId })
       .populate("uploadedBy", "name email")
-      .sort({ createdAt: -1 });
+      .sort({ uploadedAt: -1 });
 
     if (!documents || documents.length === 0) {
       console.info(`No documents found for departmentId: ${departmentId}`);
@@ -271,7 +272,7 @@ exports.getDocumentsByUser = async (req, res) => {
     const documents = await Document.find({ uploadedBy: userId })
       .populate("uploadedBy", "name email")
       .populate("department", "name")
-      .sort({ createdAt: -1 });
+      .sort({ uploadedAt: -1 });
 
     if (!documents || documents.length === 0) {
       console.info(`No documents found for userId: ${userId}`);
@@ -293,20 +294,28 @@ exports.getDocumentsByUser = async (req, res) => {
 
 exports.getAllDocuments = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", department = "", status = "", fromDate = "", toDate = "" } = req.query;
-    
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      department = "",
+      status = "",
+      fromDate = "",
+      toDate = "",
+    } = req.query;
+
     // Build query object
     let query = {};
-    
+
     // Add search functionality
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: "i" } },
         { fileName: { $regex: search, $options: "i" } },
-        { summary: { $regex: search, $options: "i" } }
+        { summary: { $regex: search, $options: "i" } },
       ];
     }
-    
+
     // Add department filter
     if (department) {
       query.classification = { $regex: department, $options: "i" };
@@ -328,12 +337,12 @@ exports.getAllDocuments = async (req, res) => {
 
     // Calculate skip value for pagination
     const skip = (page - 1) * limit;
-    
+
     // Fetch documents with pagination
     const documents = await Document.find(query)
       .populate("uploadedBy", "name email")
       .populate("department", "name")
-      .sort({ createdAt: -1 })
+      .sort({ uploadedAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -341,7 +350,9 @@ exports.getAllDocuments = async (req, res) => {
     const totalDocuments = await Document.countDocuments(query);
     const totalPages = Math.ceil(totalDocuments / limit);
 
-    console.log(`Fetched ${documents.length} documents out of ${totalDocuments} total`);
+    console.log(
+      `Fetched ${documents.length} documents out of ${totalDocuments} total`
+    );
 
     res.status(200).json({
       documents,
@@ -350,8 +361,8 @@ exports.getAllDocuments = async (req, res) => {
         totalPages,
         totalDocuments,
         hasNextPage: page < totalPages,
-        hasPrevPage: page > 1
-      }
+        hasPrevPage: page > 1,
+      },
     });
   } catch (error) {
     console.error("Error fetching all documents:", error);
@@ -602,6 +613,7 @@ exports.RAGSearchDocument = async (req, res) => {
 exports.DocumentPreview = async (req, res) => {
   try {
     const { documentId } = req.query;
+    console.log("Document preview requested for ID:", documentId);
     if (!mongoose.Types.ObjectId.isValid(documentId)) {
       return res.status(400).json({ error: "Invalid document ID" });
     }
@@ -611,15 +623,24 @@ exports.DocumentPreview = async (req, res) => {
       return res.status(404).json({ error: "Document not found" });
     }
 
-    const filePath = document.fileUrl;
+    let filePath;
+    if (document.fileUrl.startsWith("/uploads/")) {
+      filePath = path.join(__dirname, "..", document.fileUrl);
+    } else {
+      filePath = document.fileUrl;
+    }
+
     if (!fs.existsSync(filePath)) {
+      console.error("Resolved path does not exist:", filePath);
       return res.status(404).json({ error: "File not found on server" });
     }
 
-    // Determine file name and MIME type
     const fileName = document.fileName || path.basename(filePath);
+    const safeFileName = encodeURIComponent(fileName);
+
+    // Determine content type including images
     const fileExt = path.extname(filePath).toLowerCase();
-    let contentType = "application/octet-stream"; // default
+    let contentType = "application/octet-stream";
 
     if (fileExt === ".pdf") contentType = "application/pdf";
     else if (fileExt === ".docx")
@@ -627,15 +648,24 @@ exports.DocumentPreview = async (req, res) => {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     else if (fileExt === ".doc") contentType = "application/msword";
     else if (fileExt === ".txt") contentType = "text/plain";
+    else if (fileExt === ".png") contentType = "image/png";
+    else if (fileExt === ".jpg" || fileExt === ".jpeg")
+      contentType = "image/jpeg";
+    else if (fileExt === ".gif") contentType = "image/gif";
+    else if (fileExt === ".bmp") contentType = "image/bmp";
+    else if (fileExt === ".svg") contentType = "image/svg+xml";
 
-    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename*=UTF-8''${safeFileName}`
+    );
     res.setHeader("Content-Type", contentType);
 
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
 
     fileStream.on("error", (err) => {
-      console.error(`❌ Error streaming document ${documentId} file:`, err);
+      console.error(`❌ Error streaming document ${document._id} file:`, err);
       res.status(500).end("Error serving file");
     });
   } catch (error) {
@@ -683,36 +713,40 @@ exports.chatAssistant = async (req, res) => {
   try {
     const { message } = req.body;
     console.log("Chat assistant message received:", message);
-    
+
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
-    
+
     const lowerMessage = message.toLowerCase();
     let response = "";
 
     // Today's summary (overall)
-    if (lowerMessage.includes('today') && lowerMessage.includes('summary') && !lowerMessage.includes('department')) {
+    if (
+      lowerMessage.includes("today") &&
+      lowerMessage.includes("summary") &&
+      !lowerMessage.includes("department")
+    ) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
       const todayDocs = await Document.find({
-        createdAt: { $gte: today, $lt: tomorrow }
-      }).populate('department uploadedBy');
+        createdAt: { $gte: today, $lt: tomorrow },
+      }).populate("department uploadedBy");
 
       const departmentStats = {};
       let overallSummaries = [];
 
-      todayDocs.forEach(doc => {
-        const deptName = doc.department?.name || 'Unknown';
+      todayDocs.forEach((doc) => {
+        const deptName = doc.department?.name || "Unknown";
         if (!departmentStats[deptName]) {
           departmentStats[deptName] = { count: 0, size: 0, summaries: [] };
         }
         departmentStats[deptName].count++;
         departmentStats[deptName].size += doc.fileSize || 0;
-        
+
         if (doc.summary) {
           departmentStats[deptName].summaries.push(doc.summary);
           overallSummaries.push(`[${deptName}] ${doc.summary}`);
@@ -720,9 +754,16 @@ exports.chatAssistant = async (req, res) => {
       });
 
       // Create combined summary from all departments
-      const combinedSummaryText = overallSummaries.length > 0 
-        ? `\n\n**� Combined Content Summary:**\n${overallSummaries.slice(0, 10).join('\n• ')}\n${overallSummaries.length > 10 ? `\n...and ${overallSummaries.length - 10} more summaries` : ''}`
-        : '';
+      const combinedSummaryText =
+        overallSummaries.length > 0
+          ? `\n\n**� Combined Content Summary:**\n${overallSummaries
+              .slice(0, 10)
+              .join("\n• ")}\n${
+              overallSummaries.length > 10
+                ? `\n...and ${overallSummaries.length - 10} more summaries`
+                : ""
+            }`
+          : "";
 
       response = `�📊 **Today's Complete Database Summary**
 
@@ -731,17 +772,36 @@ exports.chatAssistant = async (req, res) => {
 **📄 Documents Overview:**
 • Total documents processed: ${todayDocs.length}
 • Departments active: ${Object.keys(departmentStats).length}
-• Total file size: ${(Object.values(departmentStats).reduce((acc, dept) => acc + dept.size, 0) / (1024 * 1024)).toFixed(2)} MB
+• Total file size: ${(
+        Object.values(departmentStats).reduce(
+          (acc, dept) => acc + dept.size,
+          0
+        ) /
+        (1024 * 1024)
+      ).toFixed(2)} MB
 
 **🏢 Department Activity:**
-${Object.entries(departmentStats).map(([dept, stats]) => 
-  `• ${dept}: ${stats.count} documents (${todayDocs.length > 0 ? ((stats.count / todayDocs.length) * 100).toFixed(1) : 0}%) - ${stats.summaries.length} with summaries`
-).join('\n')}
+${Object.entries(departmentStats)
+  .map(
+    ([dept, stats]) =>
+      `• ${dept}: ${stats.count} documents (${
+        todayDocs.length > 0
+          ? ((stats.count / todayDocs.length) * 100).toFixed(1)
+          : 0
+      }%) - ${stats.summaries.length} with summaries`
+  )
+  .join("\n")}
 
 **🔍 Recent Documents:**
-${todayDocs.slice(0, 5).map(doc => 
-  `• ${doc.fileName || doc.title || 'Unknown'} - ${doc.department?.name || 'Unknown'} - ${doc.createdAt.toLocaleTimeString()}`
-).join('\n')}${combinedSummaryText}
+${todayDocs
+  .slice(0, 5)
+  .map(
+    (doc) =>
+      `• ${doc.fileName || doc.title || "Unknown"} - ${
+        doc.department?.name || "Unknown"
+      } - ${doc.createdAt.toLocaleTimeString()}`
+  )
+  .join("\n")}${combinedSummaryText}
 
 **📈 System Status:**
 • Database status: Online ✅
@@ -752,15 +812,18 @@ Would you like me to dive deeper into any specific department or area?`;
     }
 
     // Department-specific summary
-    else if (lowerMessage.includes('summary') && (lowerMessage.includes('department') || lowerMessage.includes('dept'))) {
+    else if (
+      lowerMessage.includes("summary") &&
+      (lowerMessage.includes("department") || lowerMessage.includes("dept"))
+    ) {
       // Extract department name from message with multiple patterns
       const deptPatterns = [
         /(?:from|for|of|in)\s+([a-zA-Z&\s]+)\s+(?:department|dept)/i,
         /([a-zA-Z&\s]+)\s+department/i,
         /summary\s+([a-zA-Z&\s]+)/i,
-        /(?:get|give)\s+me\s+(?:today's\s+)?summary\s+for\s+([a-zA-Z&\s]+)/i
+        /(?:get|give)\s+me\s+(?:today's\s+)?summary\s+for\s+([a-zA-Z&\s]+)/i,
       ];
-      
+
       let targetDept = null;
       for (const pattern of deptPatterns) {
         const match = lowerMessage.match(pattern);
@@ -776,60 +839,84 @@ Would you like me to dive deeper into any specific department or area?`;
       tomorrow.setDate(tomorrow.getDate() + 1);
 
       let query = { createdAt: { $gte: today, $lt: tomorrow } };
-      let matchedDepartmentName = 'All Departments';
-      
+      let matchedDepartmentName = "All Departments";
+
       // If specific department mentioned, filter by department
       if (targetDept) {
         // Create flexible department matching
         const departmentKeywords = {
-          'engineering': ['Engineering & Infrastructure', 'engineering'],
-          'finance': ['Finance & Accounts', 'finance'],
-          'hr': ['Human Resources', 'human', 'hr'],
-          'operations': ['Operations & Maintenance', 'operations', 'maintenance'],
-          'electrical': ['Electrical & Mechanical', 'electrical', 'mechanical'],
-          'legal': ['Legal & Compliance', 'legal', 'compliance'],
-          'procurement': ['Procurement & Contracts', 'procurement', 'contracts'],
-          'communications': ['Corporate Communications', 'communications', 'corporate'],
-          'business': ['Business Development', 'business', 'development'],
-          'security': ['Vigilance & Security', 'security', 'vigilance'],
-          'it': ['Information Technology & Systems', 'it', 'technology', 'systems'],
-          'planning': ['Planning & Development', 'planning'],
-          'environment': ['Environment & Sustainability', 'environment', 'sustainability'],
-          'customer': ['Customer Relations & Services', 'customer', 'relations', 'services'],
-          'project': ['Project Management', 'project', 'management']
+          engineering: ["Engineering & Infrastructure", "engineering"],
+          finance: ["Finance & Accounts", "finance"],
+          hr: ["Human Resources", "human", "hr"],
+          operations: ["Operations & Maintenance", "operations", "maintenance"],
+          electrical: ["Electrical & Mechanical", "electrical", "mechanical"],
+          legal: ["Legal & Compliance", "legal", "compliance"],
+          procurement: ["Procurement & Contracts", "procurement", "contracts"],
+          communications: [
+            "Corporate Communications",
+            "communications",
+            "corporate",
+          ],
+          business: ["Business Development", "business", "development"],
+          security: ["Vigilance & Security", "security", "vigilance"],
+          it: [
+            "Information Technology & Systems",
+            "it",
+            "technology",
+            "systems",
+          ],
+          planning: ["Planning & Development", "planning"],
+          environment: [
+            "Environment & Sustainability",
+            "environment",
+            "sustainability",
+          ],
+          customer: [
+            "Customer Relations & Services",
+            "customer",
+            "relations",
+            "services",
+          ],
+          project: ["Project Management", "project", "management"],
         };
 
         let departments = [];
         for (const [key, variations] of Object.entries(departmentKeywords)) {
-          if (variations.some(variation => 
-            targetDept.includes(variation.toLowerCase()) || 
-            variation.toLowerCase().includes(targetDept)
-          )) {
+          if (
+            variations.some(
+              (variation) =>
+                targetDept.includes(variation.toLowerCase()) ||
+                variation.toLowerCase().includes(targetDept)
+            )
+          ) {
             const foundDepts = await Department.find({
-              name: { $regex: variations[0], $options: 'i' }
+              name: { $regex: variations[0], $options: "i" },
             });
             departments = departments.concat(foundDepts);
-            matchedDepartmentName = foundDepts.length > 0 ? foundDepts[0].name : targetDept;
+            matchedDepartmentName =
+              foundDepts.length > 0 ? foundDepts[0].name : targetDept;
             break;
           }
         }
-        
+
         // Fallback: direct search
         if (departments.length === 0) {
           departments = await Department.find({
-            name: { $regex: targetDept, $options: 'i' }
+            name: { $regex: targetDept, $options: "i" },
           });
           if (departments.length > 0) {
             matchedDepartmentName = departments[0].name;
           }
         }
-        
+
         if (departments.length > 0) {
-          query.department = { $in: departments.map(d => d._id) };
+          query.department = { $in: departments.map((d) => d._id) };
         }
       }
 
-      const todayDocs = await Document.find(query).populate('department uploadedBy');
+      const todayDocs = await Document.find(query).populate(
+        "department uploadedBy"
+      );
 
       if (todayDocs.length === 0) {
         response = `📊 **${matchedDepartmentName} Summary**
@@ -856,23 +943,26 @@ How else can I help you?`;
         const departmentStats = {};
         let departmentSummaries = [];
 
-        todayDocs.forEach(doc => {
-          const deptName = doc.department?.name || 'Unknown';
+        todayDocs.forEach((doc) => {
+          const deptName = doc.department?.name || "Unknown";
           if (!departmentStats[deptName]) {
             departmentStats[deptName] = { count: 0, size: 0, summaries: [] };
           }
           departmentStats[deptName].count++;
           departmentStats[deptName].size += doc.fileSize || 0;
-          
+
           if (doc.summary) {
             departmentStats[deptName].summaries.push(doc.summary);
             departmentSummaries.push(doc.summary);
           }
         });
 
-        const combinedSummary = departmentSummaries.length > 0 
-          ? `\n\n**📋 Department Content Summary:**\n• ${departmentSummaries.join('\n• ')}`
-          : '';
+        const combinedSummary =
+          departmentSummaries.length > 0
+            ? `\n\n**📋 Department Content Summary:**\n• ${departmentSummaries.join(
+                "\n• "
+              )}`
+            : "";
 
         response = `📊 **${matchedDepartmentName} Summary**
 
@@ -880,45 +970,70 @@ How else can I help you?`;
 
 **📄 Documents Overview:**
 • Total documents processed: ${todayDocs.length}
-• Total file size: ${(todayDocs.reduce((acc, doc) => acc + (doc.fileSize || 0), 0) / (1024 * 1024)).toFixed(2)} MB
+• Total file size: ${(
+          todayDocs.reduce((acc, doc) => acc + (doc.fileSize || 0), 0) /
+          (1024 * 1024)
+        ).toFixed(2)} MB
 
 **🏢 Department Breakdown:**
-${Object.entries(departmentStats).map(([dept, stats]) => 
-  `• ${dept}: ${stats.count} documents (${(stats.size / (1024 * 1024)).toFixed(2)} MB) - ${stats.summaries.length} with summaries`
-).join('\n')}
+${Object.entries(departmentStats)
+  .map(
+    ([dept, stats]) =>
+      `• ${dept}: ${stats.count} documents (${(
+        stats.size /
+        (1024 * 1024)
+      ).toFixed(2)} MB) - ${stats.summaries.length} with summaries`
+  )
+  .join("\n")}
 
 **🔍 Document Details:**
-${todayDocs.map(doc => 
-  `• ${doc.fileName || doc.title || 'Unknown'} - ${doc.uploadedBy?.name || 'Unknown'} - ${doc.createdAt.toLocaleTimeString()}`
-).join('\n')}${combinedSummary}
+${todayDocs
+  .map(
+    (doc) =>
+      `• ${doc.fileName || doc.title || "Unknown"} - ${
+        doc.uploadedBy?.name || "Unknown"
+      } - ${doc.createdAt.toLocaleTimeString()}`
+  )
+  .join("\n")}${combinedSummary}
 
 **📈 Performance:**
 • Processing success rate: 100%
-• Average file size: ${todayDocs.length > 0 ? (todayDocs.reduce((acc, doc) => acc + (doc.fileSize || 0), 0) / todayDocs.length / 1024).toFixed(0) : 0} KB
+• Average file size: ${
+          todayDocs.length > 0
+            ? (
+                todayDocs.reduce((acc, doc) => acc + (doc.fileSize || 0), 0) /
+                todayDocs.length /
+                1024
+              ).toFixed(0)
+            : 0
+        } KB
 • Documents with AI summaries: ${departmentSummaries.length}/${todayDocs.length}
 
 Need more details about any specific document or want to see other departments?`;
       }
     }
-    
+
     // Document analysis
-    else if (lowerMessage.includes('document') && (lowerMessage.includes('analyz') || lowerMessage.includes('analysis'))) {
+    else if (
+      lowerMessage.includes("document") &&
+      (lowerMessage.includes("analyz") || lowerMessage.includes("analysis"))
+    ) {
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
-      
+
       const weekDocs = await Document.find({
-        createdAt: { $gte: weekAgo }
-      }).populate('department uploadedBy');
+        createdAt: { $gte: weekAgo },
+      }).populate("department uploadedBy");
 
       const fileTypes = {};
       const departments = {};
-      
-      weekDocs.forEach(doc => {
-        const filename = doc.fileName || doc.title || 'unknown';
-        const ext = filename.split('.').pop()?.toLowerCase() || 'unknown';
+
+      weekDocs.forEach((doc) => {
+        const filename = doc.fileName || doc.title || "unknown";
+        const ext = filename.split(".").pop()?.toLowerCase() || "unknown";
         fileTypes[ext] = (fileTypes[ext] || 0) + 1;
-        
-        const deptName = doc.department?.name || 'Unknown';
+
+        const deptName = doc.department?.name || "Unknown";
         departments[deptName] = (departments[deptName] || 0) + 1;
       });
 
@@ -930,14 +1045,25 @@ Need more details about any specific document or want to see other departments?`
 • Average per day: ${Math.round(weekDocs.length / 7)}
 
 **📁 File Types:**
-${Object.entries(fileTypes).map(([type, count]) => 
-  `• .${type}: ${count} files (${((count / weekDocs.length) * 100).toFixed(1)}%)`
-).join('\n')}
+${Object.entries(fileTypes)
+  .map(
+    ([type, count]) =>
+      `• .${type}: ${count} files (${((count / weekDocs.length) * 100).toFixed(
+        1
+      )}%)`
+  )
+  .join("\n")}
 
 **🏢 Department Distribution:**
-${Object.entries(departments).map(([dept, count]) => 
-  `• ${dept}: ${count} documents (${((count / weekDocs.length) * 100).toFixed(1)}%)`
-).join('\n')}
+${Object.entries(departments)
+  .map(
+    ([dept, count]) =>
+      `• ${dept}: ${count} documents (${(
+        (count / weekDocs.length) *
+        100
+      ).toFixed(1)}%)`
+  )
+  .join("\n")}
 
 **📈 Upload Trends:**
 • Peak activity detected
@@ -945,21 +1071,31 @@ ${Object.entries(departments).map(([dept, count]) =>
 
 **✅ Quality Metrics:**
 • Processing success rate: 100%
-• Average file size: ${Math.round(weekDocs.reduce((acc, doc) => acc + (doc.fileSize || 0), 0) / weekDocs.length / 1024)} KB
+• Average file size: ${Math.round(
+        weekDocs.reduce((acc, doc) => acc + (doc.fileSize || 0), 0) /
+          weekDocs.length /
+          1024
+      )} KB
 • Metadata extraction: Complete
 
 Need more details on any specific aspect?`;
     }
-    
+
     // Database insights
-    else if (lowerMessage.includes('database') || lowerMessage.includes('insight')) {
+    else if (
+      lowerMessage.includes("database") ||
+      lowerMessage.includes("insight")
+    ) {
       const totalDocs = await Document.countDocuments();
       const totalUsers = await Employee.countDocuments();
       const totalDepts = await Department.countDocuments();
-      
+
       const recentActivity = await Document.find({
-        createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-      }).sort({ createdAt: -1 }).limit(5).populate('department uploadedBy');
+        uploadedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      })
+        .sort({ uploadedAt: -1 })
+        .limit(5)
+        .populate("department uploadedBy");
 
       response = `🧠 **Key Database Insights**
 
@@ -970,9 +1106,14 @@ Need more details on any specific aspect?`;
 • System Health: Excellent ✅
 
 **📈 Recent Activity (24h):**
-${recentActivity.map(doc => 
-  `• ${doc.fileName || doc.title || 'Unknown'} - ${doc.department?.name || 'Unknown'} - ${doc.uploadedBy?.name || 'Unknown'}`
-).join('\n')}
+${recentActivity
+  .map(
+    (doc) =>
+      `• ${doc.fileName || doc.title || "Unknown"} - ${
+        doc.department?.name || "Unknown"
+      } - ${doc.uploadedBy?.name || "Unknown"}`
+  )
+  .join("\n")}
 
 **🔍 Usage Patterns:**
 • Peak hours: 9 AM - 11 AM, 2 PM - 4 PM
@@ -999,36 +1140,46 @@ ${recentActivity.map(doc =>
 
 What specific insight would you like me to elaborate on?`;
     }
-    
+
     // Weekly or period summary
-    else if ((lowerMessage.includes('week') || lowerMessage.includes('this week')) && lowerMessage.includes('summary')) {
+    else if (
+      (lowerMessage.includes("week") || lowerMessage.includes("this week")) &&
+      lowerMessage.includes("summary")
+    ) {
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
-      
+
       const weekDocs = await Document.find({
-        createdAt: { $gte: weekAgo }
-      }).populate('department uploadedBy');
+        createdAt: { $gte: weekAgo },
+      }).populate("department uploadedBy");
 
       const departmentStats = {};
       let weekSummaries = [];
 
-      weekDocs.forEach(doc => {
-        const deptName = doc.department?.name || 'Unknown';
+      weekDocs.forEach((doc) => {
+        const deptName = doc.department?.name || "Unknown";
         if (!departmentStats[deptName]) {
           departmentStats[deptName] = { count: 0, size: 0, summaries: [] };
         }
         departmentStats[deptName].count++;
         departmentStats[deptName].size += doc.fileSize || 0;
-        
+
         if (doc.summary) {
           departmentStats[deptName].summaries.push(doc.summary);
           weekSummaries.push(`[${deptName}] ${doc.summary}`);
         }
       });
 
-      const combinedWeeklySummary = weekSummaries.length > 0 
-        ? `\n\n**📋 Weekly Content Summary:**\n• ${weekSummaries.slice(0, 15).join('\n• ')}\n${weekSummaries.length > 15 ? `\n...and ${weekSummaries.length - 15} more summaries` : ''}`
-        : '';
+      const combinedWeeklySummary =
+        weekSummaries.length > 0
+          ? `\n\n**📋 Weekly Content Summary:**\n• ${weekSummaries
+              .slice(0, 15)
+              .join("\n• ")}\n${
+              weekSummaries.length > 15
+                ? `\n...and ${weekSummaries.length - 15} more summaries`
+                : ""
+            }`
+          : "";
 
       response = `📊 **Weekly Summary (Last 7 Days)**
 
@@ -1037,13 +1188,26 @@ What specific insight would you like me to elaborate on?`;
 **📄 Documents Overview:**
 • Total documents processed: ${weekDocs.length}
 • Departments active: ${Object.keys(departmentStats).length}
-• Total file size: ${(Object.values(departmentStats).reduce((acc, dept) => acc + dept.size, 0) / (1024 * 1024)).toFixed(2)} MB
+• Total file size: ${(
+        Object.values(departmentStats).reduce(
+          (acc, dept) => acc + dept.size,
+          0
+        ) /
+        (1024 * 1024)
+      ).toFixed(2)} MB
 • Daily average: ${Math.round(weekDocs.length / 7)} documents
 
 **🏢 Department Activity:**
-${Object.entries(departmentStats).map(([dept, stats]) => 
-  `• ${dept}: ${stats.count} documents (${weekDocs.length > 0 ? ((stats.count / weekDocs.length) * 100).toFixed(1) : 0}%) - ${stats.summaries.length} with summaries`
-).join('\n')}${combinedWeeklySummary}
+${Object.entries(departmentStats)
+  .map(
+    ([dept, stats]) =>
+      `• ${dept}: ${stats.count} documents (${
+        weekDocs.length > 0
+          ? ((stats.count / weekDocs.length) * 100).toFixed(1)
+          : 0
+      }%) - ${stats.summaries.length} with summaries`
+  )
+  .join("\n")}${combinedWeeklySummary}
 
 **📈 Weekly Trends:**
 • Most active day: ${new Date().toLocaleDateString()} (estimated)
@@ -1054,7 +1218,11 @@ Want to dive deeper into any specific day or department?`;
     }
 
     // General greeting/help
-    else if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('help')) {
+    else if (
+      lowerMessage.includes("hello") ||
+      lowerMessage.includes("hi") ||
+      lowerMessage.includes("help")
+    ) {
       response = `Hello! 👋 I'm your KMRL IntelliDocs AI Assistant!
 
 I'm here to help you with:
@@ -1082,14 +1250,17 @@ What would you like to know? Just ask me naturally! 😊`;
     }
 
     // Quick stats queries
-    else if (lowerMessage.includes('how many') && lowerMessage.includes('today')) {
+    else if (
+      lowerMessage.includes("how many") &&
+      lowerMessage.includes("today")
+    ) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
       const todayCount = await Document.countDocuments({
-        createdAt: { $gte: today, $lt: tomorrow }
+        createdAt: { $gte: today, $lt: tomorrow },
       });
 
       response = `📊 **Today's Upload Count**
@@ -1105,29 +1276,34 @@ Anything else you'd like to know? 😊`;
     }
 
     // Active department query
-    else if (lowerMessage.includes('most active') || (lowerMessage.includes('which') && lowerMessage.includes('department'))) {
+    else if (
+      lowerMessage.includes("most active") ||
+      (lowerMessage.includes("which") && lowerMessage.includes("department"))
+    ) {
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
-      
+
       const recentDocs = await Document.find({
-        createdAt: { $gte: weekAgo }
-      }).populate('department');
+        createdAt: { $gte: weekAgo },
+      }).populate("department");
 
       const deptActivity = {};
-      recentDocs.forEach(doc => {
-        const deptName = doc.department?.name || 'Unknown';
+      recentDocs.forEach((doc) => {
+        const deptName = doc.department?.name || "Unknown";
         deptActivity[deptName] = (deptActivity[deptName] || 0) + 1;
       });
 
       const sortedDepts = Object.entries(deptActivity)
-        .sort(([,a], [,b]) => b - a)
+        .sort(([, a], [, b]) => b - a)
         .slice(0, 5);
 
       response = `📊 **Most Active Departments (Last 7 Days)**
 
-${sortedDepts.map(([dept, count], index) => 
-  `${index + 1}. **${dept}**: ${count} documents`
-).join('\n')}
+${sortedDepts
+  .map(
+    ([dept, count], index) => `${index + 1}. **${dept}**: ${count} documents`
+  )
+  .join("\n")}
 
 **Total documents this week:** ${recentDocs.length}
 
@@ -1172,14 +1348,14 @@ How can I assist you today? 🚀`;
 
     res.json({
       response: response,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
-
   } catch (error) {
-    console.error('Chat Assistant Error:', error);
-    res.status(500).json({ 
-      error: "I'm experiencing some technical difficulties. Please try again in a moment.",
-      timestamp: new Date()
+    console.error("Chat Assistant Error:", error);
+    res.status(500).json({
+      error:
+        "I'm experiencing some technical difficulties. Please try again in a moment.",
+      timestamp: new Date(),
     });
   }
 };
@@ -1190,21 +1366,23 @@ exports.groqDocumentAnalysis = async (req, res) => {
     const { message, documents, requestType } = req.body;
 
     if (!message || !documents || documents.length === 0) {
-      return res.status(400).json({ 
-        error: "Message and documents are required for analysis" 
+      return res.status(400).json({
+        error: "Message and documents are required for analysis",
       });
     }
 
     // Prepare document context for Groq
-    const documentContext = documents.map(doc => {
-      return `
+    const documentContext = documents
+      .map((doc) => {
+        return `
 Document: ${doc.title}
-Department: ${doc.department || 'Unknown'}
-Classification: ${doc.classification || 'Unknown'}
-Summary: ${doc.summary || 'No summary available'}
-Content: ${doc.content || 'Content not available'}
+Department: ${doc.department || "Unknown"}
+Classification: ${doc.classification || "Unknown"}
+Summary: ${doc.summary || "No summary available"}
+Content: ${doc.content || "Content not available"}
 ---`;
-    }).join('\n');
+      })
+      .join("\n");
 
     // Create comprehensive prompt for Groq
     const systemPrompt = `You are KMRL IntelliBot, an AI assistant for Kochi Metro Rail Limited (KMRL). 
@@ -1245,66 +1423,77 @@ Respond directly and specifically to: "${message}"`;
 
     // Make request to Groq API
     const groqResponse = await axios.post(
-      'https://api.groq.com/openai/v1/chat/completions',
+      "https://api.groq.com/openai/v1/chat/completions",
       {
-        model: 'llama-3.1-8b-instant', // or 'mixtral-8x7b-32768'
+        model: "llama-3.1-8b-instant", // or 'mixtral-8x7b-32768'
         messages: [
           {
-            role: 'system',
-            content: systemPrompt
+            role: "system",
+            content: systemPrompt,
           },
           {
-            role: 'user', 
-            content: userPrompt
-          }
+            role: "user",
+            content: userPrompt,
+          },
         ],
         temperature: 0.1,
         max_tokens: 2048,
-        stream: false
+        stream: false,
       },
       {
         headers: {
-          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json",
+        },
       }
     );
 
     const analysis = groqResponse.data.choices[0]?.message?.content;
 
     if (!analysis) {
-      throw new Error('No analysis received from Groq API');
+      throw new Error("No analysis received from Groq API");
     }
 
     // Log the interaction for monitoring
-    console.log(`Groq Analysis Request: ${message} | Documents: ${documents.length} | Response Length: ${analysis.length}`);
+    console.log(
+      `Groq Analysis Request: ${message} | Documents: ${documents.length} | Response Length: ${analysis.length}`
+    );
 
     res.json({
       analysis: analysis,
       documentCount: documents.length,
       timestamp: new Date(),
-      requestType: requestType || 'document_analysis'
+      requestType: requestType || "document_analysis",
     });
-
   } catch (error) {
-    console.error('Groq API Error:', error.response?.data || error.message);
-    
-    // Fallback response if Groq API fails
-    let fallbackResponse = "I apologize, but I'm currently experiencing issues with my advanced analysis capabilities. ";
-    
-    if (error.response?.status === 401) {
-      fallbackResponse += "The AI analysis service is not properly configured. Please contact your administrator.";
-    } else if (error.response?.status === 429) {
-      fallbackResponse += "The AI analysis service is currently at capacity. Please try again in a few minutes.";
-    } else {
-      fallbackResponse += `Here's a basic summary of your ${req.body.documents?.length || 0} document(s):
+    console.error("Groq API Error:", error.response?.data || error.message);
 
-${req.body.documents?.map((doc, index) => 
-  `**Document ${index + 1}: ${doc.title}**
-- Department: ${doc.department || 'Unknown'}
-- Classification: ${doc.classification || 'Unknown'}
-- Summary: ${doc.summary || 'Summary not available'}`
-).join('\n\n') || 'No documents provided'}
+    // Fallback response if Groq API fails
+    let fallbackResponse =
+      "I apologize, but I'm currently experiencing issues with my advanced analysis capabilities. ";
+
+    if (error.response?.status === 401) {
+      fallbackResponse +=
+        "The AI analysis service is not properly configured. Please contact your administrator.";
+    } else if (error.response?.status === 429) {
+      fallbackResponse +=
+        "The AI analysis service is currently at capacity. Please try again in a few minutes.";
+    } else {
+      fallbackResponse += `Here's a basic summary of your ${
+        req.body.documents?.length || 0
+      } document(s):
+
+${
+  req.body.documents
+    ?.map(
+      (doc, index) =>
+        `**Document ${index + 1}: ${doc.title}**
+- Department: ${doc.department || "Unknown"}
+- Classification: ${doc.classification || "Unknown"}
+- Summary: ${doc.summary || "Summary not available"}`
+    )
+    .join("\n\n") || "No documents provided"
+}
 
 For detailed analysis, please try again later or contact your system administrator.`;
     }
@@ -1313,8 +1502,8 @@ For detailed analysis, please try again later or contact your system administrat
       analysis: fallbackResponse,
       documentCount: req.body.documents?.length || 0,
       timestamp: new Date(),
-      requestType: req.body.requestType || 'document_analysis',
-      fallback: true
+      requestType: req.body.requestType || "document_analysis",
+      fallback: true,
     });
   }
 };

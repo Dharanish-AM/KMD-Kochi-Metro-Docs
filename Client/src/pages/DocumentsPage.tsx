@@ -49,6 +49,10 @@ import { Separator } from "@/components/ui/separator"
 import axiosInstance from "@/Utils/Auth/axiosInstance"
 import { useState, useEffect, useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
+import { getUser } from "@/Utils/Auth/token"
+import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Label } from "@/components/ui/label"
 // Document interface based on backend schema
 interface Document {
   _id: string;
@@ -68,7 +72,7 @@ interface Document {
   classification: string;
   classification_labels?: string[];
   classification_scores?: number[];
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   tags?: string[];
   version?: number;
   status?: 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -97,6 +101,15 @@ interface DocumentsResponse {
   };
 }
 
+interface UploadFile {
+  id: string;
+  file: File;
+  progress: number;
+  status: "pending" | "uploading" | "completed" | "error";
+  description?: string;
+  preview?: string; // For image files
+}
+
 export function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,6 +119,12 @@ export function DocumentsPage() {
   const [pagination, setPagination] = useState<DocumentsResponse['pagination'] | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadDescription, setUploadDescription] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string; department?: string } | null>(null);
   const { toast } = useToast();
 
   // Fetch documents from API
@@ -142,6 +161,14 @@ export function DocumentsPage() {
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
+
+  // Get current user
+  useEffect(() => {
+    const user = getUser();
+    if (user) {
+      setCurrentUser(user);
+    }
+  }, []);
 
   // Handle search with debouncing
   useEffect(() => {
@@ -256,6 +283,340 @@ export function DocumentsPage() {
     }
   }
 
+  // Upload utility functions
+  const handleFiles = useCallback(async (newFiles: File[]) => {
+    // Validate file types and size
+    const validFiles = newFiles.filter((file) => {
+      const maxSize = 50 * 1024 * 1024; // 50MB as per backend
+      const allowedTypes = [
+        // Document types
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+        "application/msword", // .doc
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+        "application/vnd.ms-excel", // .xls
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+        "application/vnd.ms-powerpoint", // .ppt
+        "text/plain", // .txt
+        "text/csv", // .csv
+        "application/rtf", // .rtf
+
+        // Image types
+        "image/jpeg", // .jpg, .jpeg
+        "image/png", // .png
+        "image/gif", // .gif
+        "image/bmp", // .bmp
+        "image/webp", // .webp
+        "image/svg+xml", // .svg
+        "image/tiff", // .tiff
+        "image/x-icon", // .ico
+
+        // Archive types
+        "application/zip", // .zip
+        "application/x-rar-compressed", // .rar
+        "application/x-7z-compressed", // .7z
+        "application/x-tar", // .tar
+        "application/gzip", // .gz
+
+        // Audio types
+        "audio/mpeg", // .mp3
+        "audio/wav", // .wav
+        "audio/ogg", // .ogg
+        "audio/aac", // .aac
+        "audio/mp4", // .m4a
+
+        // Video types
+        "video/mp4", // .mp4
+        "video/avi", // .avi
+        "video/quicktime", // .mov
+        "video/x-msvideo", // .avi
+        "video/webm", // .webm
+        "video/ogg", // .ogv
+
+        // Other formats
+        "application/json", // .json
+        "application/xml", // .xml
+        "text/xml", // .xml
+        "application/javascript", // .js
+        "text/css", // .css
+        "text/html", // .html
+        "application/octet-stream", // Generic binary files
+      ];
+
+      if (file.size > maxSize) {
+        toast({
+          title: "File Too Large",
+          description: `${file.name} is larger than 50MB limit.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      if (!allowedTypes.includes(file.type)) {
+        const fileExtension =
+          file.name.split(".").pop()?.toLowerCase() || "unknown";
+        toast({
+          title: "Unsupported File Type",
+          description: `${fileExtension.toUpperCase()} files are not supported. Please upload documents, images, audio, video, or archive files.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      return true;
+    });
+
+    const newUploadFiles: UploadFile[] = await Promise.all(
+      validFiles.map(async (file) => {
+        let preview: string | undefined;
+
+        // Generate preview for image files
+        if (file.type.startsWith("image/")) {
+          try {
+            preview = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.readAsDataURL(file);
+            });
+          } catch (error) {
+            console.warn("Failed to generate image preview:", error);
+          }
+        }
+
+        return {
+          id: Math.random().toString(36).substr(2, 9),
+          file,
+          progress: 0,
+          status: "pending" as const,
+          description: uploadDescription || file.name,
+          preview,
+        };
+      })
+    );
+
+    setUploadFiles((prev) => [...prev, ...newUploadFiles]);
+
+    // Show success message
+    toast({
+      title: "Files Selected",
+      description: `${newUploadFiles.length} file${
+        newUploadFiles.length > 1 ? "s" : ""
+      } ready for upload`,
+      variant: "default",
+    });
+  }, [uploadDescription, toast]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    handleFiles(droppedFiles);
+  }, [handleFiles]);
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files);
+      handleFiles(selectedFiles);
+    }
+  };
+
+  const uploadFileToBackend = async (uploadFile: UploadFile) => {
+    const { file, description } = uploadFile;
+
+    try {
+      // Set status to uploading when upload actually starts
+      setUploadFiles((prev) =>
+        prev.map((f) =>
+          f.id === uploadFile.id
+            ? { ...f, status: "uploading", progress: 0 }
+            : f
+        )
+      );
+
+      if (!currentUser?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("title", description || file.name);
+
+      const response = await axiosInstance.post(
+        `/api/documents/upload?userId=${currentUser.id}`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const progress = Math.round(
+                (progressEvent.loaded * 100) / progressEvent.total
+              );
+              setUploadFiles((prev) =>
+                prev.map((f) =>
+                  f.id === uploadFile.id
+                    ? { ...f, progress, status: "uploading" }
+                    : f
+                )
+              );
+            }
+          },
+        }
+      );
+
+      // Update file status to completed
+      setUploadFiles((prev) =>
+        prev.map((f) =>
+          f.id === uploadFile.id
+            ? { ...f, progress: 100, status: "completed" }
+            : f
+        )
+      );
+
+      return response.data;
+    } catch (error: unknown) {
+      console.error("Upload error:", error);
+
+      // Update file status to error
+      setUploadFiles((prev) =>
+        prev.map((f) =>
+          f.id === uploadFile.id ? { ...f, status: "error" } : f
+        )
+      );
+
+      throw error;
+    }
+  };
+
+  const removeUploadFile = (fileId: string) => {
+    setUploadFiles((prev) => prev.filter((file) => file.id !== fileId));
+  };
+
+  const handleSubmitAllUploads = async () => {
+    if (uploadFiles.length === 0) {
+      toast({
+        title: "No Files Selected",
+        description: "Please select files before submitting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const pendingFiles = uploadFiles.filter((f) => f.status === "pending");
+
+    if (pendingFiles.length === 0) {
+      toast({
+        title: "No Files to Upload",
+        description: "All files have already been processed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const uploadPromises = pendingFiles.map((file) =>
+        uploadFileToBackend(file)
+      );
+
+      // Wait for all uploads to complete
+      const results = await Promise.allSettled(uploadPromises);
+
+      // Check results
+      const successCount = results.filter(
+        (result) => result.status === "fulfilled"
+      ).length;
+      const errorCount = results.filter(
+        (result) => result.status === "rejected"
+      ).length;
+
+      if (successCount > 0) {
+        toast({
+          title: "Upload Successful!",
+          description: `${successCount} file${
+            successCount > 1 ? "s" : ""
+          } uploaded successfully${
+            errorCount > 0
+              ? `. ${errorCount} file${errorCount > 1 ? "s" : ""} failed.`
+              : "."
+          }`,
+          variant:
+            successCount === pendingFiles.length
+              ? "default"
+              : "destructive",
+        });
+      }
+
+      if (errorCount === pendingFiles.length) {
+        toast({
+          title: "Upload Failed",
+          description:
+            "All files failed to upload. Please check your connection and try again.",
+          variant: "destructive",
+        });
+      }
+
+      // Clear completed and pending files after successful submission
+      if (successCount > 0) {
+        // Refresh the documents list
+        fetchDocuments();
+
+        setTimeout(() => {
+          setUploadFiles((prev) => prev.filter((f) => f.status === "error")); // Keep only error files
+          setUploadDescription("");
+          if (successCount === pendingFiles.length) {
+            setIsUploadModalOpen(false);
+          }
+        }, 2000);
+      }
+    } catch (error: unknown) {
+      console.error("Submission error:", error);
+      toast({
+        title: "Upload Error",
+        description:
+          (error as Error)?.message ||
+          "Failed to upload files. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Get appropriate icon for file type
+  const getFileIcon = (fileName: string, mimeType?: string) => {
+    const extension = fileName.split(".").pop()?.toLowerCase();
+
+    // Image files
+    if (
+      mimeType?.startsWith("image/") ||
+      [
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "bmp",
+        "webp",
+        "svg",
+        "tiff",
+        "ico",
+      ].includes(extension || "")
+    ) {
+      return <FileText className="h-5 w-5 text-blue-500" />;
+    }
+
+    // Document files
+    if (["pdf", "doc", "docx", "txt", "rtf"].includes(extension || "")) {
+      return <FileText className="h-5 w-5 text-red-500" />;
+    }
+
+    // Default file icon
+    return <FileText className="h-5 w-5 text-gray-500" />;
+  };
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
@@ -282,7 +643,7 @@ export function DocumentsPage() {
                   <Filter className="h-4 w-4 mr-2" />
                   Refresh
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => setIsUploadModalOpen(true)}>
                   <Upload className="h-4 w-4 mr-2" />
                   Upload
                 </Button>
@@ -1157,6 +1518,287 @@ export function DocumentsPage() {
               </Tabs>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Modal */}
+      <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Upload className="h-5 w-5" />
+              <span>Upload Documents</span>
+            </DialogTitle>
+            <DialogDescription>
+              Upload new documents to your account
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Upload Configuration */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="upload-description" className="text-sm font-medium">
+                  Description (Optional)
+                </Label>
+                <Input
+                  id="upload-description"
+                  placeholder="Brief description of the documents"
+                  value={uploadDescription}
+                  onChange={(e) => setUploadDescription(e.target.value)}
+                  className="h-12"
+                />
+              </div>
+            </div>
+
+            {/* File Drop Zone */}
+            <div
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
+                isDragging
+                  ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20 scale-105"
+                  : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              }`}
+              onDrop={handleDrop}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+            >
+              <div className="space-y-4">
+                <div
+                  className={`mx-auto w-16 h-16 ${
+                    isDragging ? "bg-blue-500" : "bg-gray-100 dark:bg-gray-700"
+                  } rounded-xl flex items-center justify-center transition-all duration-300 ${
+                    isDragging ? "animate-bounce" : ""
+                  }`}
+                >
+                  <Upload
+                    className={`h-8 w-8 transition-all duration-300 ${
+                      isDragging ? "text-white animate-pulse" : "text-gray-400"
+                    }`}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xl font-semibold text-gray-700 dark:text-gray-300">
+                    {isDragging
+                      ? "Drop your files here"
+                      : "Drag & drop files here"}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    or click the button below to browse files
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2 mt-4">
+                    <div className="flex items-center space-x-1 bg-white/50 dark:bg-gray-800/50 px-2 py-1 rounded-full text-xs">
+                      <FileText className="h-3 w-3 text-red-500" />
+                      <span>Documents</span>
+                    </div>
+                    <div className="flex items-center space-x-1 bg-white/50 dark:bg-gray-800/50 px-2 py-1 rounded-full text-xs">
+                      <FileText className="h-3 w-3 text-blue-500" />
+                      <span>Images</span>
+                    </div>
+                    <div className="flex items-center space-x-1 bg-white/50 dark:bg-gray-800/50 px-2 py-1 rounded-full text-xs">
+                      <Archive className="h-3 w-3 text-orange-500" />
+                      <span>Archives</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                    Maximum file size: 50MB per file
+                  </p>
+                </div>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.tiff,.ico,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.aac,.m4a,.mp4,.avi,.mov,.webm,.ogv,.json,.xml,.js,.css,.html"
+                  onChange={handleFileInput}
+                  className="hidden"
+                  id="file-upload-modal"
+                />
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  <label htmlFor="file-upload-modal" className="cursor-pointer">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Browse Files
+                  </label>
+                </Button>
+              </div>
+            </div>
+
+            {/* Upload Guidelines */}
+            <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-600 dark:text-blue-400">
+                <strong>Important:</strong> Ensure all documents are properly
+                named and contain relevant information. Files will be reviewed by administrators before
+                approval.
+              </AlertDescription>
+            </Alert>
+
+            {/* File List & Submit Section */}
+            {uploadFiles.length > 0 && (
+              <div className="space-y-6">
+                {/* Summary Card */}
+                <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-lg">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                          <FileText className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {uploadFiles.filter(f => f.status === 'pending').length} Files Ready for Submission
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Total size: {formatFileSize(uploadFiles.reduce((acc, file) => acc + file.file.size, 0))}
+                            {uploadFiles.filter(f => f.status === 'completed').length > 0 && (
+                              <span className="ml-2 text-green-600">
+                                • {uploadFiles.filter(f => f.status === 'completed').length} uploaded
+                              </span>
+                            )}
+                            {uploadFiles.filter(f => f.status === 'error').length > 0 && (
+                              <span className="ml-2 text-red-600">
+                                • {uploadFiles.filter(f => f.status === 'error').length} failed
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={handleSubmitAllUploads}
+                        disabled={isSubmitting}
+                        size="lg"
+                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Submit All Files
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {uploadFiles.filter(f => f.status === 'completed').length > 0 && (
+                      <div className="mt-4">
+                        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <span>Upload Progress</span>
+                          <span>
+                            {uploadFiles.filter(f => f.status === 'completed').length} of {uploadFiles.length} completed
+                          </span>
+                        </div>
+                        <Progress
+                          value={(uploadFiles.filter(f => f.status === 'completed').length / uploadFiles.length) * 100}
+                          className="h-2"
+                        />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* File List */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <FileText className="h-5 w-5" />
+                      <span>Selected Files ({uploadFiles.length})</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4 max-h-64 overflow-y-auto">
+                      {uploadFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center space-x-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/50"
+                        >
+                          <div className="flex-shrink-0">
+                            {file.preview && file.file.type.startsWith("image/") ? (
+                              <div className="relative w-12 h-12 rounded-lg overflow-hidden border-2 border-white shadow-sm">
+                                <img
+                                  src={file.preview}
+                                  alt={file.file.name}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/10 rounded-lg"></div>
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 bg-white dark:bg-gray-600 rounded-lg flex items-center justify-center border shadow-sm">
+                                {getFileIcon(file.file.name, file.file.type)}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                {file.file.name}
+                              </p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeUploadFile(file.id)}
+                                className="flex-shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                disabled={isSubmitting}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mb-3">
+                              <span>{formatFileSize(file.file.size)}</span>
+                              {file.description && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate max-w-xs">
+                                    {file.description}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+
+                            <div className="flex items-center space-x-3">
+                              <Progress
+                                value={file.progress}
+                                className="flex-1 h-2"
+                              />
+                              <span className="text-xs font-medium text-gray-900 dark:text-white min-w-[3rem] text-right">
+                                {file.status === "pending"
+                                  ? "Ready"
+                                  : `${Math.round(file.progress)}%`}
+                              </span>
+                              <div className="min-w-[1.5rem] flex justify-center">
+                                {file.status === "completed" && (
+                                  <CheckCircle className="h-5 w-5 text-green-500" />
+                                )}
+                                {file.status === "uploading" && (
+                                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                                )}
+                                {file.status === "error" && (
+                                  <AlertCircle className="h-5 w-5 text-red-500" />
+                                )}
+                                {file.status === "pending" && (
+                                  <Clock className="h-5 w-5 text-gray-400" />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -4,13 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -57,7 +51,6 @@ interface UploadFile {
   progress: number;
   status: "pending" | "uploading" | "completed" | "error";
   description?: string;
-  category?: string;
   preview?: string; // For image files
 }
 
@@ -292,72 +285,7 @@ const departmentThemes = {
   },
 };
 
-const fileCategories = {
-  Engineering: [
-    "Technical Reports",
-    "Project Plans",
-    "Specifications",
-    "Drawings",
-    "Test Results",
-  ],
-  HR: [
-    "Employee Records",
-    "Policies",
-    "Training Materials",
-    "Assessments",
-    "Contracts",
-  ],
-  Legal: [
-    "Contracts",
-    "Legal Opinions",
-    "Compliance Reports",
-    "Court Documents",
-    "Agreements",
-  ],
-  Finance: [
-    "Financial Reports",
-    "Budgets",
-    "Invoices",
-    "Audit Reports",
-    "Tax Documents",
-  ],
-  Safety: [
-    "Safety Protocols",
-    "Incident Reports",
-    "Training Records",
-    "Inspections",
-    "Certifications",
-  ],
-  Operations: [
-    "Procedures",
-    "Schedules",
-    "Performance Reports",
-    "Quality Control",
-    "Maintenance Logs",
-  ],
-  Procurement: [
-    "Purchase Orders",
-    "Vendor Documents",
-    "Contracts",
-    "Specifications",
-    "Invoices",
-  ],
-  Admin: ["Memos", "Correspondence", "Policies", "Meeting Minutes", "Reports"],
-  Maintenance: [
-    "Work Orders",
-    "Inspection Reports",
-    "Equipment Manuals",
-    "Schedules",
-    "Parts Lists",
-  ],
-  Security: [
-    "Protocols",
-    "Incident Reports",
-    "Access Records",
-    "Training Materials",
-    "Procedures",
-  ],
-};
+
 
 export const DepartmentFileUpload = ({
   department,
@@ -365,7 +293,6 @@ export const DepartmentFileUpload = ({
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadDescription, setUploadDescription] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userDocuments, setUserDocuments] = useState<DocumentFromAPI[]>([]);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
@@ -377,9 +304,6 @@ export const DepartmentFileUpload = ({
   const theme =
     departmentThemes[department as keyof typeof departmentThemes] ||
     departmentThemes["Engineering"];
-  const categories =
-    fileCategories[department as keyof typeof fileCategories] ||
-    fileCategories["Engineering"];
 
   // Get appropriate icon for file type
   const getFileIcon = (fileName: string, mimeType?: string) => {
@@ -607,7 +531,6 @@ export const DepartmentFileUpload = ({
           progress: 0,
           status: "pending" as const,
           description: uploadDescription || file.name,
-          category: selectedCategory,
           preview,
         };
       })
@@ -626,7 +549,7 @@ export const DepartmentFileUpload = ({
   };
 
   const uploadFileToBackend = async (uploadFile: UploadFile) => {
-    const { file, description, category } = uploadFile;
+    const { file, description } = uploadFile;
 
     try {
       // Set status to uploading when upload actually starts
@@ -647,7 +570,6 @@ export const DepartmentFileUpload = ({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("title", description || file.name);
-      formData.append("category", category || "");
 
       // Department will be automatically fetched from user's profile in backend
 
@@ -713,14 +635,7 @@ export const DepartmentFileUpload = ({
       return;
     }
 
-    if (!selectedCategory) {
-      toast({
-        title: "Category Required",
-        description: "Please select a document category before submitting.",
-        variant: "destructive",
-      });
-      return;
-    }
+
 
     if (pendingFiles === 0) {
       toast({
@@ -785,7 +700,6 @@ export const DepartmentFileUpload = ({
         setTimeout(() => {
           setFiles((prev) => prev.filter((f) => f.status === "error")); // Keep only error files
           setUploadDescription("");
-          // Don't clear category in case user wants to upload more files
         }, 2000);
       }
     } catch (error: any) {
@@ -923,28 +837,7 @@ export const DepartmentFileUpload = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="category" className="text-sm font-medium">
-                Document Category *
-              </Label>
-              <Select
-                value={selectedCategory}
-                onValueChange={setSelectedCategory}
-              >
-                <SelectTrigger className="h-12">
-                  <SelectValue placeholder="Select document category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="description" className="text-sm font-medium">
                 Description (Optional)
@@ -1086,8 +979,7 @@ export const DepartmentFileUpload = ({
                       {pendingFiles} Files Ready for Submission
                     </h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Total size: {formatFileSize(totalSize)} • Category:{" "}
-                      {selectedCategory || "Not selected"}
+                      Total size: {formatFileSize(totalSize)}
                       {completedFiles > 0 && (
                         <span className="ml-2 text-green-600">
                           • {completedFiles} uploaded
@@ -1104,7 +996,7 @@ export const DepartmentFileUpload = ({
 
                 <Button
                   onClick={handleSubmitAll}
-                  disabled={isSubmitting || !selectedCategory}
+                  disabled={isSubmitting}
                   size="lg"
                   className={`bg-gradient-to-r ${theme.primary} hover:opacity-90 text-white shadow-lg hover:shadow-xl transition-all duration-200`}
                 >
@@ -1206,14 +1098,6 @@ export const DepartmentFileUpload = ({
 
                       <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mb-3">
                         <span>{formatFileSize(file.file.size)}</span>
-                        {file.category && (
-                          <>
-                            <span>•</span>
-                            <Badge variant="outline" className="text-xs">
-                              {file.category}
-                            </Badge>
-                          </>
-                        )}
                         {file.description && (
                           <>
                             <span>•</span>

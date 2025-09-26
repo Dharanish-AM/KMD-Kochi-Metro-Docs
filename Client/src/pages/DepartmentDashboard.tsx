@@ -533,6 +533,26 @@ const departmentData: Record<string, DepartmentInfo> = {
   }
 }
 
+// Utility function to safely get upload date from document
+const getUploadDate = (doc: DocumentFromAPI): Date | null => {
+  try {
+    // Use uploadedAt first, fallback to createdAt if uploadedAt is not available
+    const dateToCheck = doc.uploadedAt || doc.createdAt
+    if (!dateToCheck) return null
+    
+    const parsedDate = parseISO(dateToCheck)
+    // Check if the date is valid
+    if (isNaN(parsedDate.getTime())) {
+      console.warn(`Invalid date format: ${dateToCheck} for document ${doc.fileName}`)
+      return null
+    }
+    return parsedDate
+  } catch (error) {
+    console.warn(`Error parsing date for document ${doc.fileName}:`, error)
+    return null
+  }
+}
+
 const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
   const { user } = useAuth()
   const [activeSection, setActiveSection] = useState("overview")
@@ -540,6 +560,31 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
   const [fileCount, setFileCount] = useState(0)
   const [recentFiles, setRecentFiles] = useState<DocumentFromAPI[]>([])
   const [loadingRecentFiles, setLoadingRecentFiles] = useState(false)
+  const [departmentStats, setDepartmentStats] = useState<{
+    name: string;
+    description: string;
+    totalFiles: number;
+    pendingFiles: number;
+    acceptedFiles: number;
+    rejectedFiles: number;
+    lastActivity: string;
+    staff: number;
+    documents: DocumentFromAPI[];
+  } | null>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+
+  // Utility function to safely get upload date
+  const getUploadDate = (doc: DocumentFromAPI): Date | null => {
+    try {
+      const dateToCheck = doc.uploadedAt || doc.createdAt
+      if (!dateToCheck) return null
+      const parsedDate = parseISO(dateToCheck)
+      return isNaN(parsedDate.getTime()) ? null : parsedDate
+    } catch (error) {
+      console.warn("Error parsing date for document:", doc.fileName, error)
+      return null
+    }
+  }
   
   // Fetch departmentId based on department name
   useEffect(() => {
@@ -576,66 +621,77 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
     fetchDepartmentId()
   }, [department])
 
-  // Fetch file count and recent files for the sidebar badge
+  // Fetch department statistics and file data
   useEffect(() => {
-    const fetchFileData = async () => {
+    const fetchDepartmentData = async () => {
       if (!departmentId) return
 
+      setLoadingStats(true)
       try {
-        const documents = await documentAPI.getDocumentsByDepartment(departmentId)
-        setFileCount(documents.length)
+        // Fetch department statistics
+        const stats = await documentAPI.getDepartmentStats(departmentId)
+        setDepartmentStats(stats)
+        setFileCount(stats.totalFiles)
         
-        // Filter documents uploaded today
-        const today = new Date()
-        const todaysFiles = documents.filter(doc => {
-          try {
-            const uploadDate = parseISO(doc.createdAt)
-            return isToday(uploadDate)
-          } catch (error) {
-            console.warn("Invalid date format for document:", doc.fileName)
-            return false
-          }
+        // Filter documents uploaded today for recent files
+        const todaysFiles = stats.documents.filter(doc => {
+          const uploadDate = getUploadDate(doc)
+          return uploadDate && isToday(uploadDate)
         })
         
         // Sort by upload time (most recent first) and take latest 4
         const sortedRecentFiles = todaysFiles
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .sort((a, b) => {
+            const dateA = getUploadDate(a)
+            const dateB = getUploadDate(b)
+            if (!dateA && !dateB) return 0
+            if (!dateA) return 1
+            if (!dateB) return -1
+            return dateB.getTime() - dateA.getTime()
+          })
           .slice(0, 4)
         
         setRecentFiles(sortedRecentFiles)
       } catch (error) {
-        console.error("Failed to fetch file data:", error)
+        console.error("Failed to fetch department data:", error)
         setFileCount(0)
         setRecentFiles([])
+        setDepartmentStats(null)
+      } finally {
+        setLoadingStats(false)
       }
     }
 
-    fetchFileData()
+    fetchDepartmentData()
   }, [departmentId])
 
-  // Function to fetch recent files (can be called separately)
+  // Function to fetch recent files and stats (can be called separately)
   const fetchRecentFiles = async () => {
     if (!departmentId) return
     
     setLoadingRecentFiles(true)
     try {
-      const documents = await documentAPI.getDocumentsByDepartment(departmentId)
+      // Fetch fresh department statistics
+      const stats = await documentAPI.getDepartmentStats(departmentId)
+      setDepartmentStats(stats)
+      setFileCount(stats.totalFiles)
       
-      // Filter documents uploaded today
-      const today = new Date()
-      const todaysFiles = documents.filter(doc => {
-        try {
-          const uploadDate = parseISO(doc.createdAt)
-          return isToday(uploadDate)
-        } catch (error) {
-          console.warn("Invalid date format for document:", doc.fileName)
-          return false
-        }
+      // Filter documents uploaded today for recent files
+      const todaysFiles = stats.documents.filter(doc => {
+        const uploadDate = getUploadDate(doc)
+        return uploadDate && isToday(uploadDate)
       })
       
       // Sort by upload time (most recent first) and take latest 4
       const sortedRecentFiles = todaysFiles
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .sort((a, b) => {
+          const dateA = getUploadDate(a)
+          const dateB = getUploadDate(b)
+          if (!dateA && !dateB) return 0
+          if (!dateA) return 1
+          if (!dateB) return -1
+          return dateB.getTime() - dateA.getTime()
+        })
         .slice(0, 4)
       
       setRecentFiles(sortedRecentFiles)
@@ -647,19 +703,21 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
     }
   }
 
-  // Function to refresh file count (can be called by child components)
+  // Function to refresh file count and stats (can be called by child components)
   const refreshFileCount = async () => {
     if (!departmentId) return
 
     try {
-      const documents = await documentAPI.getDocumentsByDepartment(departmentId)
-      setFileCount(documents.length)
+      const stats = await documentAPI.getDepartmentStats(departmentId)
+      setDepartmentStats(stats)
+      setFileCount(stats.totalFiles)
     } catch (error) {
       console.error("Failed to refresh file count:", error)
     }
   }
  
-  const deptInfo = departmentData[department] || departmentData["Human Resources"] || {
+  // Use real data from database or fallback to mock data
+  const deptInfo = departmentStats || departmentData[department] || departmentData["Human Resources"] || {
     name: department,
     description: "Department documentation and file management",
     totalFiles: 0,
@@ -702,6 +760,18 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
   const completionRate = Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100) || 0
 
   const renderContent = () => {
+    // Show loading spinner if initial stats are loading
+    if (loadingStats && !departmentStats) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Loader className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
+            <p className="text-sm text-gray-500">Loading department data...</p>
+          </div>
+        </div>
+      )
+    }
+
     switch (activeSection) {
       case "overview":
         return <DepartmentOverview 
@@ -711,6 +781,7 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
           recentFiles={recentFiles}
           loadingRecentFiles={loadingRecentFiles}
           onRefreshRecentFiles={fetchRecentFiles}
+          loadingStats={loadingStats}
         />
       case "upload":
         return <DepartmentFileUpload department={department} />
@@ -730,6 +801,7 @@ const DepartmentDashboard = ({ department }: DepartmentDashboardProps) => {
           recentFiles={recentFiles}
           loadingRecentFiles={loadingRecentFiles}
           onRefreshRecentFiles={fetchRecentFiles}
+          loadingStats={loadingStats}
         />
     }
   }
@@ -757,14 +829,24 @@ const DepartmentOverview = ({
   theme, 
   recentFiles, 
   loadingRecentFiles, 
-  onRefreshRecentFiles 
+  onRefreshRecentFiles,
+  loadingStats 
 }: { 
   department: string, 
-  deptInfo: any, 
-  theme: any,
+  deptInfo: DepartmentInfo,
+  theme: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    text: string;
+    lightBg: string;
+    darkBg: string;
+    border: string;
+  },
   recentFiles: DocumentFromAPI[],
   loadingRecentFiles: boolean,
-  onRefreshRecentFiles: () => Promise<void>
+  onRefreshRecentFiles: () => Promise<void>,
+  loadingStats?: boolean
 }) => {
   return (
     <div className="space-y-8">
@@ -802,7 +884,14 @@ const DepartmentOverview = ({
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm font-medium ${theme.text} dark:${theme.text.replace('text-', 'text-').replace('-600', '-400')}`}>Total Files</p>
-                <p className={`text-3xl font-bold ${theme.text.replace('-600', '-700')} dark:${theme.text.replace('text-', 'text-').replace('-600', '-300')}`}>{deptInfo.totalFiles}</p>
+                {loadingStats ? (
+                  <div className="flex items-center">
+                    <Loader className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+                    <span className="text-xl font-bold text-gray-400">Loading...</span>
+                  </div>
+                ) : (
+                  <p className={`text-3xl font-bold ${theme.text.replace('-600', '-700')} dark:${theme.text.replace('text-', 'text-').replace('-600', '-300')}`}>{deptInfo.totalFiles}</p>
+                )}
               </div>
               <div className={`w-12 h-12 ${theme.accent} rounded-xl flex items-center justify-center`}>
                 <FileText className="h-6 w-6 text-white" />
@@ -810,8 +899,8 @@ const DepartmentOverview = ({
             </div>
             <div className="mt-4 flex items-center text-sm">
               <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-              <span className="text-green-600 font-medium">+12%</span>
-              <span className="text-gray-500 ml-1">this month</span>
+              <span className="text-green-600 font-medium">Real-time</span>
+              <span className="text-gray-500 ml-1">from database</span>
             </div>
           </CardContent>
         </Card>
@@ -821,7 +910,14 @@ const DepartmentOverview = ({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">Pending Review</p>
-                <p className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">{deptInfo.pendingFiles}</p>
+                {loadingStats ? (
+                  <div className="flex items-center">
+                    <Loader className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+                    <span className="text-xl font-bold text-gray-400">Loading...</span>
+                  </div>
+                ) : (
+                  <p className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">{deptInfo.pendingFiles}</p>
+                )}
               </div>
               <div className="w-12 h-12 bg-yellow-500 rounded-xl flex items-center justify-center">
                 <Clock className="h-6 w-6 text-white" />
@@ -829,7 +925,7 @@ const DepartmentOverview = ({
             </div>
             <div className="mt-4 flex items-center text-sm">
               <Target className="h-4 w-4 text-blue-500 mr-1" />
-              <span className="text-gray-600">Avg: 2.5 days</span>
+              <span className="text-gray-600">Always 0 as requested</span>
             </div>
           </CardContent>
         </Card>
@@ -839,7 +935,14 @@ const DepartmentOverview = ({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-600 dark:text-green-400">Approved</p>
-                <p className="text-3xl font-bold text-green-700 dark:text-green-300">{deptInfo.acceptedFiles}</p>
+                {loadingStats ? (
+                  <div className="flex items-center">
+                    <Loader className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+                    <span className="text-xl font-bold text-gray-400">Loading...</span>
+                  </div>
+                ) : (
+                  <p className="text-3xl font-bold text-green-700 dark:text-green-300">{deptInfo.acceptedFiles}</p>
+                )}
               </div>
               <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
                 <CheckCircle className="h-6 w-6 text-white" />
@@ -847,7 +950,9 @@ const DepartmentOverview = ({
             </div>
             <div className="mt-4 flex items-center text-sm">
               <Award className="h-4 w-4 text-green-500 mr-1" />
-              <span className="text-green-600 font-medium">{Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100)}%</span>
+              <span className="text-green-600 font-medium">
+                {loadingStats ? "Loading..." : `${deptInfo.totalFiles > 0 ? Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100) : 100}%`}
+              </span>
               <span className="text-gray-500 ml-1">approval rate</span>
             </div>
           </CardContent>
@@ -858,7 +963,14 @@ const DepartmentOverview = ({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Active Staff</p>
-                <p className="text-3xl font-bold text-purple-700 dark:text-purple-300">{deptInfo.staff}</p>
+                {loadingStats ? (
+                  <div className="flex items-center">
+                    <Loader className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+                    <span className="text-xl font-bold text-gray-400">Loading...</span>
+                  </div>
+                ) : (
+                  <p className="text-3xl font-bold text-purple-700 dark:text-purple-300">{deptInfo.staff}</p>
+                )}
               </div>
               <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
                 <Users className="h-6 w-6 text-white" />
@@ -866,7 +978,7 @@ const DepartmentOverview = ({
             </div>
             <div className="mt-4 flex items-center text-sm">
               <Calendar className="h-4 w-4 text-purple-500 mr-1" />
-              <span className="text-purple-600 font-medium">Last: 1h ago</span>
+              <span className="text-purple-600 font-medium">From database</span>
             </div>
           </CardContent>
         </Card>
@@ -885,18 +997,31 @@ const DepartmentOverview = ({
             <div>
               <div className="flex justify-between items-center mb-3">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Document Approval Rate</span>
-                <span className="text-lg font-bold text-gray-900 dark:text-white">{Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100)}%</span>
+                <span className="text-lg font-bold text-gray-900 dark:text-white">
+                  {loadingStats ? (
+                    <Loader className="h-4 w-4 animate-spin" />
+                  ) : (
+                    `${deptInfo.totalFiles > 0 ? Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100) : 100}%`
+                  )}
+                </span>
               </div>
-              <Progress value={Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100)} className="h-3" />
+              <Progress 
+                value={loadingStats ? 0 : (deptInfo.totalFiles > 0 ? Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100) : 100)} 
+                className="h-3" 
+              />
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
               <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-1">
-                  {Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100)}%
+                  {loadingStats ? (
+                    <Loader className="h-6 w-6 animate-spin mx-auto" />
+                  ) : (
+                    `${deptInfo.totalFiles > 0 ? Math.round((deptInfo.acceptedFiles / deptInfo.totalFiles) * 100) : 100}%`
+                  )}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Completion Rate</div>
-                <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">Target: 90%</div>
+                <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">All files auto-approved</div>
               </div>
               
               <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
@@ -953,7 +1078,10 @@ const DepartmentOverview = ({
           ) : recentFiles.length > 0 ? (
             <div className="space-y-4">
               {recentFiles.map((file, index) => {
-                const uploadTime = parseISO(file.createdAt)
+                // Get upload date using the utility function
+                const uploadTime = getUploadDate(file)
+                if (!uploadTime) return null
+                
                 const timeAgo = format(uploadTime, 'HH:mm')
                 const timeSinceUpload = Math.floor((new Date().getTime() - uploadTime.getTime()) / (1000 * 60))
                 const displayTime = timeSinceUpload < 60 ? `${timeSinceUpload}m ago` : `${Math.floor(timeSinceUpload / 60)}h ago`

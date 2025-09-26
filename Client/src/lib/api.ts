@@ -225,6 +225,7 @@ export interface DocumentFromAPI {
   };
   createdAt: string;
   updatedAt: string;
+  uploadedAt: string;
 }
 
 export const documentAPI = {
@@ -270,6 +271,27 @@ export const documentAPI = {
       return response.data.documents;
     } catch (error) {
       console.error('Failed to fetch department documents:', error);
+      throw error;
+    }
+  },
+
+  // Get department statistics
+  getDepartmentStats: async (departmentId: string): Promise<{
+    name: string;
+    description: string;
+    totalFiles: number;
+    pendingFiles: number;
+    acceptedFiles: number;
+    rejectedFiles: number;
+    lastActivity: string;
+    staff: number;
+    documents: DocumentFromAPI[];
+  }> => {
+    try {
+      const response = await axiosInstance.get(`/api/documents/department-stats/${departmentId}`);
+      return response.data.stats;
+    } catch (error) {
+      console.error('Failed to fetch department stats:', error);
       throw error;
     }
   },

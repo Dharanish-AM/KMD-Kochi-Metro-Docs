@@ -403,7 +403,7 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
   const handleViewDocument = async (documentId: string) => {
     try {
       // Use the download endpoint to view the document
-      const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/documents/download/${documentId}`
+      const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || `http://localhost:8000/api/documents/document-preview?documentId=${documentId}`}`;
       window.open(downloadUrl, '_blank')
     } catch (error) {
       console.error("Error opening document:", error)
@@ -455,7 +455,7 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
   const handleDownloadDocument = async (documentId: string) => {
     try {
       // Use the download API endpoint
-      const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/documents/download/${documentId}`
+      const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || 'hhttp://localhost:8000/api/documents/document-preview?documentId=${documentId}'}`;
       
       // Get document details for filename
       const docData = await documentAPI.getDocumentById(documentId)
