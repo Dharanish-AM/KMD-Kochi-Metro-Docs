@@ -4,6 +4,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   FileText,
   Download,
@@ -19,11 +28,25 @@ import {
   User,
   Upload,
   Loader,
-  RefreshCw
+  RefreshCw,
+  BookOpen,
+  Info,
+  Tag,
+  Sparkles,
+  Building2,
+  Archive,
+  Globe,
+  Languages,
+  Copy,
+  Share2,
+  Heart,
+  Bookmark,
+  Star
 } from "lucide-react"
 import { format } from "date-fns"
 import { documentAPI, type DocumentFromAPI } from "@/lib/api"
 import { getUser } from "@/Utils/Auth/token"
+import { useToast } from "@/hooks/use-toast"
 interface DepartmentFileHistoryProps {
   department: string
   departmentId?: string
@@ -316,6 +339,9 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
   const [allFiles, setAllFiles] = useState<FileRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedDocument, setSelectedDocument] = useState<DocumentFromAPI | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const { toast } = useToast()
   
   // Get department theme
   const theme = departmentThemes[department as keyof typeof departmentThemes] || departmentThemes["Engineering"]
@@ -376,39 +402,59 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
   // Handler functions for document actions
   const handleViewDocument = async (documentId: string) => {
     try {
-      // Get the document details first to get the file URL
-      const document = await documentAPI.getDocumentById(documentId)
-      
-      if (document.fileUrl) {
-        let fileUrl: string
-        
-        if (document.fileUrl.startsWith('http')) {
-          // Already a complete URL
-          fileUrl = document.fileUrl
-        } else if (document.fileUrl.startsWith('/uploads/')) {
-          // New format: relative path starting with /uploads/
-          fileUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${document.fileUrl}`
-        } else {
-          // Old format: absolute file system path - extract filename and construct URL
-          const filename = document.fileUrl.split(/[\\/]/).pop() || document.fileName
-          fileUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/uploads/${filename}`
-        }
-        
-        // Open the PDF in a new tab
-        window.open(fileUrl, '_blank')
-      } else {
-        console.error("No file URL found for document:", documentId)
-        // You could show a toast notification here
-      }
+      // Use the download endpoint to view the document
+      const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/documents/download/${documentId}`
+      window.open(downloadUrl, '_blank')
     } catch (error) {
-      console.error("Error viewing document:", error)
-      // You could show an error toast notification here
+      console.error("Error opening document:", error)
+      toast({
+        title: "Error",
+        description: "Failed to open document",
+        variant: "destructive"
+      })
     }
+  }
+
+  // Handle viewing full document details
+  const handleViewMore = async (fileId: string) => {
+    try {
+      console.log("Fetching document details for ID:", fileId)
+      const document = await documentAPI.getDocumentById(fileId)
+      console.log("Document fetched successfully:", document)
+      setSelectedDocument(document)
+      setIsModalOpen(true)
+    } catch (error: any) {
+      console.error("Error fetching document details:", error)
+      console.error("Error response:", error.response?.data)
+      console.error("Error status:", error.response?.status)
+      
+      let errorMessage = "Failed to load document details"
+      if (error.response?.status === 404) {
+        errorMessage = "Document not found"
+      } else if (error.response?.status === 400) {
+        errorMessage = "Invalid document ID"
+      }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Handle copying text to clipboard
+  const handleCopyText = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast({
+      title: "Success",
+      description: "Text copied to clipboard",
+    })
   }
 
   const handleDownloadDocument = async (documentId: string) => {
     try {
-      // Method 1: Use dedicated download API endpoint (more robust)
+      // Use the download API endpoint
       const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/documents/download/${documentId}`
       
       // Get document details for filename
@@ -418,48 +464,23 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
       const link = document.createElement('a')
       link.href = downloadUrl
       link.download = docData.fileName || docData.title || 'document'
-      link.target = '_blank'
       
       // Append to body, click, and remove
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       
-      console.log("Download initiated for:", docData.fileName || docData.title)
+      toast({
+        title: "Success",
+        description: `Download started for ${docData.fileName || docData.title}`,
+      })
     } catch (error) {
       console.error("Error downloading document:", error)
-      
-      // Fallback: Try the old method with direct file URL
-      try {
-        const docData = await documentAPI.getDocumentById(documentId)
-        
-        if (docData.fileUrl) {
-          let downloadUrl: string
-          
-          if (docData.fileUrl.startsWith('http')) {
-            downloadUrl = docData.fileUrl
-          } else if (docData.fileUrl.startsWith('/uploads/')) {
-            downloadUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${docData.fileUrl}`
-          } else {
-            const filename = docData.fileUrl.split(/[\\/]/).pop() || docData.fileName
-            downloadUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/uploads/${filename}`
-          }
-          
-          const link = document.createElement('a')
-          link.href = downloadUrl
-          link.download = docData.fileName || docData.title || 'document'
-          link.target = '_blank'
-          
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
-          
-          console.log("Fallback download initiated for:", docData.fileName || docData.title)
-        }
-      } catch (fallbackError) {
-        console.error("Fallback download also failed:", fallbackError)
-        // You could show an error toast notification here
-      }
+      toast({
+        title: "Error",
+        description: "Failed to download document",
+        variant: "destructive"
+      })
     }
   }
 
@@ -511,6 +532,28 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
     const sizes = ["Bytes", "KB", "MB", "GB"]
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
+
+  // Format date with error handling
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date'
+      }
+      return date.toLocaleDateString('en-IN', { 
+        day: 'numeric', 
+        month: 'short', 
+        year: 'numeric' 
+      })
+    } catch (error) {
+      return 'Invalid Date'
+    }
+  }
+
+  // Get file extension from fileName
+  const getFileType = (fileName: string) => {
+    return fileName.split('.').pop()?.toUpperCase() || 'FILE'
   }
 
   const getStatusIcon = (status: string) => {
@@ -761,18 +804,50 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
                         )}
                       </div>
 
-                      {/* AI-Generated Summary */}
+                      {/* AI-Generated Summary - Collapsible */}
                       {file.summary && (
-                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mb-4">
-                          <div className="flex items-start space-x-2">
-                            <FileText className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">
-                                AI Summary
-                              </p>
-                              <p className="text-sm text-blue-600 dark:text-blue-400">
-                                {file.summary}
-                              </p>
+                        <div className="mb-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const summaryElement = document.getElementById(`summary-${file.id}`)
+                              const isHidden = summaryElement?.style.display === 'none'
+                              if (summaryElement) {
+                                summaryElement.style.display = isHidden ? 'block' : 'none'
+                              }
+                              const chevron = document.getElementById(`chevron-${file.id}`)
+                              if (chevron) {
+                                chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)'
+                              }
+                            }}
+                            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2 h-auto"
+                          >
+                            <Sparkles className="h-4 w-4" />
+                            <span className="text-sm font-medium">AI Summary</span>
+                            <svg 
+                              id={`chevron-${file.id}`}
+                              className="h-4 w-4 transition-transform duration-200" 
+                              fill="none" 
+                              viewBox="0 0 24 24" 
+                              stroke="currentColor"
+                              style={{ transform: 'rotate(0deg)' }}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </Button>
+                          <div 
+                            id={`summary-${file.id}`}
+                            className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mt-2 transition-all duration-300"
+                            style={{ display: 'none' }}
+                          >
+                            <div className="flex items-start space-x-2">
+                              <FileText className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-sm text-blue-600 dark:text-blue-400 leading-relaxed">
+                                  {file.summary}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -834,8 +909,18 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
                     <Button 
                       variant="ghost" 
                       size="sm" 
+                      className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                      onClick={() => handleViewMore(file.id)}
+                      title="View full details"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
                       className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                       onClick={() => handleViewDocument(file.id)}
+                      title="Preview document"
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
@@ -844,6 +929,7 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
                       size="sm" 
                       className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
                       onClick={() => handleDownloadDocument(file.id)}
+                      title="Download document"
                     >
                       <Download className="h-4 w-4" />
                     </Button>
@@ -852,6 +938,7 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
                       size="sm" 
                       className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
                       onClick={() => handleDeleteDocument(file.id)}
+                      title="Delete document"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -862,6 +949,635 @@ export const DepartmentFileHistory = ({ department, departmentId, filter = "all"
           ))
         )}
       </div>
+
+      {/* Enhanced Document Details Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden p-0 bg-gradient-to-br from-white via-slate-50 to-blue-50 border-0 shadow-2xl">
+          {/* Beautiful Header Section */}
+          <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white overflow-hidden">
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute inset-0" style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3Ccircle cx='27' cy='7' r='1'/%3E%3Ccircle cx='47' cy='7' r='1'/%3E%3Ccircle cx='7' cy='27' r='1'/%3E%3Ccircle cx='27' cy='27' r='1'/%3E%3Ccircle cx='47' cy='27' r='1'/%3E%3Ccircle cx='7' cy='47' r='1'/%3E%3Ccircle cx='27' cy='47' r='1'/%3E%3Ccircle cx='47' cy='47' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+              }}></div>
+            </div>
+            
+            <div className="relative p-8">
+              <DialogHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-4 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30">
+                      <FileText className="h-8 w-8 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <DialogTitle className="text-2xl font-bold text-white mb-2 leading-tight">
+                        {selectedDocument?.title || selectedDocument?.fileName}
+                      </DialogTitle>
+                      <div className="flex items-center gap-4 text-blue-100 text-sm">
+                        <span className="flex items-center gap-1">
+                          <Building2 className="h-4 w-4" />
+                          {selectedDocument?.department?.name}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <FileText className="h-4 w-4" />
+                          {selectedDocument && getFileType(selectedDocument.fileName)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <User className="h-4 w-4" />
+                          {selectedDocument?.uploadedBy?.name}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Status Badge */}
+                  {selectedDocument?.status && (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm px-3 py-1">
+                        {selectedDocument.status === 'APPROVED' && <CheckCircle className="h-4 w-4 mr-2" />}
+                        {selectedDocument.status === 'PENDING' && <Clock className="h-4 w-4 mr-2" />}
+                        {selectedDocument.status === 'REJECTED' && <XCircle className="h-4 w-4 mr-2" />}
+                        <span>{selectedDocument.status}</span>
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+                
+                <DialogDescription className="text-blue-100 mt-4 text-base">
+                  Comprehensive document analysis with AI-powered insights and multilingual support
+                </DialogDescription>
+                
+                {/* Quick Stats Row */}
+                <div className="flex items-center gap-6 mt-6 pt-4 border-t border-white/20">
+                  <div className="flex items-center gap-2 text-blue-100">
+                    <Calendar className="h-4 w-4" />
+                    <span className="text-sm">Created {selectedDocument && formatDate(selectedDocument.createdAt)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-blue-100">
+                    <Archive className="h-4 w-4" />
+                    <span className="text-sm">{selectedDocument && formatFileSize(selectedDocument.fileSize)}</span>
+                  </div>
+                  {(selectedDocument?.detectedLanguage || selectedDocument?.detected_language) && (
+                    <div className="flex items-center gap-2 text-blue-100">
+                      <Globe className="h-4 w-4" />
+                      <span className="text-sm">{selectedDocument.detectedLanguage || selectedDocument.detected_language}</span>
+                    </div>
+                  )}
+                </div>
+              </DialogHeader>
+            </div>
+          </div>
+
+          {selectedDocument && (
+            <div className="p-8">
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="grid w-full grid-cols-4 bg-white/70 backdrop-blur-sm p-1 rounded-2xl shadow-lg border border-gray-200/50">
+                  <TabsTrigger 
+                    value="overview" 
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-gray-50"
+                  >
+                    <Info className="h-4 w-4" />
+                    <span className="hidden sm:inline">Overview</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="content" 
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-gray-50"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    <span className="hidden sm:inline">Content</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="metadata" 
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-gray-50"
+                  >
+                    <Tag className="h-4 w-4" />
+                    <span className="hidden sm:inline">Metadata</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="actions" 
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-orange-600 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-gray-50"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span className="hidden sm:inline">Actions</span>
+                  </TabsTrigger>
+                </TabsList>
+
+                {/* Enhanced Overview Tab */}
+                <TabsContent value="overview" className="mt-8">
+                  <ScrollArea className="h-[55vh] pr-4">
+                    <div className="space-y-8">
+                      {/* Document Header Card */}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100 shadow-sm">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">
+                              {selectedDocument.title || selectedDocument.fileName}
+                            </h3>
+                            {selectedDocument.description && (
+                              <p className="text-gray-600 leading-relaxed">
+                                {selectedDocument.description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                              <Heart className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-blue-500 hover:text-blue-600 hover:bg-blue-50">
+                              <Bookmark className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Key Information Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {/* File Type Card */}
+                        <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 hover:shadow-lg transition-shadow duration-300">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <FileText className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <span className="text-sm font-medium text-gray-500">File Type</span>
+                          </div>
+                          <p className="text-lg font-semibold text-gray-900">{getFileType(selectedDocument.fileName)}</p>
+                        </div>
+
+                        {/* File Size Card */}
+                        <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 hover:shadow-lg transition-shadow duration-300">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-green-100 rounded-lg">
+                              <Archive className="h-5 w-5 text-green-600" />
+                            </div>
+                            <span className="text-sm font-medium text-gray-500">File Size</span>
+                          </div>
+                          <p className="text-lg font-semibold text-gray-900">{formatFileSize(selectedDocument.fileSize)}</p>
+                        </div>
+
+                        {/* Version Card */}
+                        <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 hover:shadow-lg transition-shadow duration-300">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-purple-100 rounded-lg">
+                              <Star className="h-5 w-5 text-purple-600" />
+                            </div>
+                            <span className="text-sm font-medium text-gray-500">Version</span>
+                          </div>
+                          <p className="text-lg font-semibold text-gray-900">v{selectedDocument.version || 1}</p>
+                        </div>
+                      </div>
+
+                      {/* Department & User Information */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Department Card */}
+                        <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-6 border border-orange-100">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 bg-orange-100 rounded-xl">
+                              <Building2 className="h-6 w-6 text-orange-600" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-gray-900">Department</h4>
+                              <p className="text-sm text-gray-500">Document owner</p>
+                            </div>
+                          </div>
+                          <p className="text-lg font-semibold text-gray-900">{selectedDocument.department?.name}</p>
+                        </div>
+
+                        {/* Uploaded By Card */}
+                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-6 border border-emerald-100">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 bg-emerald-100 rounded-xl">
+                              <User className="h-6 w-6 text-emerald-600" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-gray-900">Uploaded By</h4>
+                              <p className="text-sm text-gray-500">Document author</p>
+                            </div>
+                          </div>
+                          <p className="text-lg font-semibold text-gray-900">{selectedDocument.uploadedBy?.name}</p>
+                        </div>
+                      </div>
+
+                      {/* Timeline Information */}
+                      <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100">
+                        <h4 className="flex items-center gap-2 font-semibold text-gray-900 mb-6">
+                          <Clock className="h-5 w-5 text-blue-600" />
+                          Document Timeline
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-100 rounded-full">
+                              <Calendar className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-500">Created</p>
+                              <p className="text-base font-semibold text-gray-900">{formatDate(selectedDocument.createdAt)}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-purple-100 rounded-full">
+                              <Calendar className="h-5 w-5 text-purple-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-500">Last Modified</p>
+                              <p className="text-base font-semibold text-gray-900">{formatDate(selectedDocument.updatedAt)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tags Section */}
+                      {selectedDocument.tags && selectedDocument.tags.length > 0 && (
+                        <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100">
+                          <h4 className="flex items-center gap-2 font-semibold text-gray-900 mb-4">
+                            <Tag className="h-5 w-5 text-indigo-600" />
+                            Tags & Labels
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedDocument.tags.map((tag, index) => (
+                              <Badge 
+                                key={index} 
+                                className="px-3 py-1 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 border-indigo-200 hover:from-indigo-200 hover:to-purple-200 transition-all duration-300"
+                              >
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                {/* Enhanced Content Tab */}
+                <TabsContent value="content" className="mt-8">
+                  <ScrollArea className="h-[55vh] pr-4">
+                    <div className="space-y-8">
+                      {/* Language Detection Card */}
+                      {(selectedDocument.detectedLanguage || selectedDocument.detected_language) && (
+                        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border border-emerald-100">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-emerald-100 rounded-lg">
+                              <Globe className="h-5 w-5 text-emerald-600" />
+                            </div>
+                            <h4 className="font-semibold text-gray-900">Language Detection</h4>
+                          </div>
+                          <Badge className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-0 shadow-md">
+                            {selectedDocument.detectedLanguage || selectedDocument.detected_language}
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Enhanced Summary Section */}
+                      <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+                        <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
+                          <h4 className="flex items-center gap-2 font-semibold text-gray-900">
+                            <Sparkles className="h-5 w-5 text-blue-600" />
+                            AI-Generated Summaries
+                          </h4>
+                          <p className="text-sm text-gray-600 mt-1">Intelligent document analysis in multiple languages</p>
+                        </div>
+                        
+                        <div className="p-6">
+                          <Tabs defaultValue="english" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2 bg-gray-50 p-1 rounded-xl">
+                              <TabsTrigger 
+                                value="english" 
+                                className="flex items-center gap-2 rounded-lg transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                              >
+                                <Globe className="h-4 w-4" />
+                                English Summary
+                              </TabsTrigger>
+                              <TabsTrigger 
+                                value="malayalam" 
+                                className="flex items-center gap-2 rounded-lg transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                              >
+                                <Languages className="h-4 w-4" />
+                                Malayalam Summary
+                              </TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="english" className="mt-6">
+                              {selectedDocument.summary ? (
+                                <div className="space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <h5 className="font-medium text-gray-900">English Summary</h5>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => handleCopyText(selectedDocument.summary!)}
+                                      className="hover:bg-blue-50 hover:border-blue-200 transition-colors duration-200"
+                                    >
+                                      <Copy className="h-4 w-4 mr-2" />
+                                      Copy
+                                    </Button>
+                                  </div>
+                                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-6 shadow-sm">
+                                    <p className="text-gray-800 leading-relaxed">
+                                      {selectedDocument.summary}
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center py-12">
+                                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <FileText className="h-10 w-10 text-gray-400" />
+                                  </div>
+                                  <h5 className="font-medium text-gray-900 mb-2">No English Summary Available</h5>
+                                  <p className="text-gray-500 text-sm">This document hasn't been processed for English summarization yet.</p>
+                                </div>
+                              )}
+                            </TabsContent>
+
+                            <TabsContent value="malayalam" className="mt-6">
+                              {selectedDocument.summary_ml ? (
+                                <div className="space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <h5 className="font-medium text-gray-900">Malayalam Summary</h5>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => handleCopyText(selectedDocument.summary_ml!)}
+                                      className="hover:bg-emerald-50 hover:border-emerald-200 transition-colors duration-200"
+                                    >
+                                      <Copy className="h-4 w-4 mr-2" />
+                                      Copy
+                                    </Button>
+                                  </div>
+                                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-6 shadow-sm">
+                                    <p className="text-gray-800 leading-relaxed">
+                                      {selectedDocument.summary_ml}
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center py-12">
+                                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Languages className="h-10 w-10 text-gray-400" />
+                                  </div>
+                                  <h5 className="font-medium text-gray-900 mb-2">No Malayalam Summary Available</h5>
+                                  <p className="text-gray-500 text-sm">This document hasn't been processed for Malayalam summarization yet.</p>
+                                </div>
+                              )}
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+                      </div>
+
+                      {/* Original Text Section */}
+                      {selectedDocument.originalText && (
+                        <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+                          <div className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border-b border-gray-100">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-yellow-100 rounded-lg">
+                                  <FileText className="h-4 w-4 text-yellow-600" />
+                                </div>
+                                <h5 className="font-semibold text-gray-900">Original Text</h5>
+                              </div>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleCopyText(selectedDocument.originalText!)}
+                                className="hover:bg-yellow-50 hover:border-yellow-200 transition-colors duration-200"
+                              >
+                                <Copy className="h-4 w-4 mr-2" />
+                                Copy
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="p-6">
+                            <div className="max-h-48 overflow-y-auto bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-100">
+                              <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                                {selectedDocument.originalText}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Translated Text Section */}
+                      {(selectedDocument.translatedText || selectedDocument.translated_text) && (
+                        <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+                          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-100">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-green-100 rounded-lg">
+                                  <Languages className="h-4 w-4 text-green-600" />
+                                </div>
+                                <h5 className="font-semibold text-gray-900">Translated Text</h5>
+                              </div>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleCopyText(selectedDocument.translatedText || selectedDocument.translated_text!)}
+                                className="hover:bg-green-50 hover:border-green-200 transition-colors duration-200"
+                              >
+                                <Copy className="h-4 w-4 mr-2" />
+                                Copy
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="p-6">
+                            <div className="max-h-48 overflow-y-auto bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-100">
+                              <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                                {selectedDocument.translatedText || selectedDocument.translated_text}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                {/* Metadata Tab */}
+                <TabsContent value="metadata" className="mt-6">
+                  <ScrollArea className="h-[50vh]">
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-600">Document ID</label>
+                          <p className="text-xs text-gray-500 bg-gray-100 p-2 rounded font-mono">
+                            {selectedDocument._id}
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-600">Classification</label>
+                          <p className="text-gray-700">{selectedDocument.classification}</p>
+                        </div>
+                      </div>
+
+                      {/* Classification Labels */}
+                      {selectedDocument.classification_labels && selectedDocument.classification_labels.length > 0 && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-600">Classification Labels</label>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedDocument.classification_labels.map((label, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs">
+                                {label}
+                                {selectedDocument.classification_scores?.[index] && 
+                                  ` (${(selectedDocument.classification_scores[index] * 100).toFixed(1)}%)`
+                                }
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Additional Metadata */}
+                      {selectedDocument.metadata && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-600">Additional Metadata</label>
+                          <div className="bg-gray-50 border rounded-lg p-4">
+                            <pre className="text-xs text-gray-600 whitespace-pre-wrap">
+                              {JSON.stringify(selectedDocument.metadata, null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* File Details */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-600">File Name</label>
+                          <p className="text-gray-700 text-sm font-mono bg-gray-100 p-2 rounded">
+                            {selectedDocument.fileName}
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-600">File URL</label>
+                          <p className="text-gray-500 text-xs font-mono bg-gray-100 p-2 rounded truncate">
+                            {selectedDocument.fileUrl}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                {/* Enhanced Actions Tab */}
+                <TabsContent value="actions" className="mt-8">
+                  <ScrollArea className="h-[55vh] pr-4">
+                    <div className="space-y-8">
+                      {/* Primary Actions */}
+                      <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6">
+                        <h4 className="flex items-center gap-2 font-semibold text-gray-900 mb-6">
+                          <Sparkles className="h-5 w-5 text-orange-600" />
+                          Quick Actions
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Button 
+                            onClick={() => handleViewDocument(selectedDocument._id)}
+                            className="flex items-center justify-center gap-3 p-6 h-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                          >
+                            <div className="p-2 bg-white/20 rounded-lg">
+                              <Eye className="h-5 w-5" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-semibold">Preview Document</div>
+                              <div className="text-xs opacity-90">View in browser</div>
+                            </div>
+                          </Button>
+                          <Button 
+                            variant="outline"
+                            onClick={() => handleDownloadDocument(selectedDocument._id)}
+                            className="flex items-center justify-center gap-3 p-6 h-auto border-2 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 transition-all duration-300 transform hover:scale-105"
+                          >
+                            <div className="p-2 bg-emerald-100 rounded-lg">
+                              <Download className="h-5 w-5 text-emerald-600" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-semibold text-emerald-700">Download</div>
+                              <div className="text-xs text-emerald-600">Save to device</div>
+                            </div>
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Secondary Actions */}
+                      <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6">
+                        <h4 className="flex items-center gap-2 font-semibold text-gray-900 mb-6">
+                          <Share2 className="h-5 w-5 text-purple-600" />
+                          Share & Copy
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Button 
+                            variant="outline"
+                            onClick={() => handleCopyText(selectedDocument._id)}
+                            className="flex items-center justify-start gap-3 p-4 h-auto border border-gray-200 hover:border-purple-200 hover:bg-purple-50 transition-all duration-300"
+                          >
+                            <div className="p-2 bg-purple-100 rounded-lg">
+                              <Copy className="h-4 w-4 text-purple-600" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium text-purple-700">Copy Document ID</div>
+                              <div className="text-xs text-purple-600">For reference</div>
+                            </div>
+                          </Button>
+                          <Button 
+                            variant="outline"
+                            onClick={() => {
+                              const shareUrl = `${window.location.origin}/documents/${selectedDocument._id}`
+                              handleCopyText(shareUrl)
+                            }}
+                            className="flex items-center justify-start gap-3 p-4 h-auto border border-gray-200 hover:border-blue-200 hover:bg-blue-50 transition-all duration-300"
+                          >
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <Share2 className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium text-blue-700">Copy Share Link</div>
+                              <div className="text-xs text-blue-600">Share with others</div>
+                            </div>
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Document Intelligence Summary */}
+                      <div className="bg-gradient-to-br from-indigo-50 via-blue-50 to-cyan-50 rounded-xl border border-indigo-100 p-6">
+                        <h4 className="flex items-center gap-2 font-semibold text-indigo-900 mb-4">
+                          <Sparkles className="h-5 w-5 text-indigo-600" />
+                          AI Analysis Summary
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-3 h-3 rounded-full ${selectedDocument.summary ? 'bg-green-400' : 'bg-gray-300'}`}></div>
+                              <span className="text-sm font-medium text-indigo-800">
+                                Summary Generation: {selectedDocument.summary ? 'Complete' : 'Pending'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-3 h-3 rounded-full ${selectedDocument.detectedLanguage || selectedDocument.detected_language ? 'bg-green-400' : 'bg-gray-300'}`}></div>
+                              <span className="text-sm font-medium text-indigo-800">
+                                Language Detection: {selectedDocument.detectedLanguage || selectedDocument.detected_language || 'Not detected'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-3 h-3 rounded-full ${selectedDocument.translatedText || selectedDocument.translated_text ? 'bg-green-400' : 'bg-gray-300'}`}></div>
+                              <span className="text-sm font-medium text-indigo-800">
+                                Translation: {selectedDocument.translatedText || selectedDocument.translated_text ? 'Available' : 'Not available'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-3 h-3 rounded-full ${selectedDocument.status === 'APPROVED' ? 'bg-green-400' : selectedDocument.status === 'PENDING' ? 'bg-yellow-400' : 'bg-gray-300'}`}></div>
+                              <span className="text-sm font-medium text-indigo-800">
+                                Status: {selectedDocument.status || 'Unknown'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

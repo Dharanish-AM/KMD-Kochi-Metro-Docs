@@ -20,10 +20,11 @@ router.get("/all", getAllDocuments);
 router.get("/documents-by-department/:departmentId", getDocumentsByDepartment);
 router.get("/documents-by-user/:userId", getDocumentsByUser);
 router.get("/download/:documentId", downloadDocument);
-router.delete("/:documentId", deleteDocument);
 router.get("/document-preview", DocumentPreview);
 router.get("/download-document", DownloadDocument);
 router.post("/chat-assistant", chatAssistant);
 router.post("/groq-analysis", groqDocumentAnalysis);
+router.get("/:documentId", getDocumentById);
+router.delete("/:documentId", deleteDocument);
 
 module.exports = router;
