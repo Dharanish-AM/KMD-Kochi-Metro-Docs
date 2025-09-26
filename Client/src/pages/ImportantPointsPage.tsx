@@ -124,6 +124,21 @@ const transformDocumentToImportantPoint = (doc: DocumentFromAPI): ImportantPoint
         if (lowerText.includes('urgent') || lowerText.includes('critical') || lowerText.includes('immediate')) priority = 'high'
         else if (lowerText.includes('minor') || lowerText.includes('optional') || lowerText.includes('suggested')) priority = 'low'
         
+        // Safe date parsing with fallback
+        const getValidDate = (dateString: string | undefined): string => {
+          if (!dateString) return new Date().toISOString().split('T')[0]
+          
+          try {
+            const date = new Date(dateString)
+            if (isNaN(date.getTime())) {
+              return new Date().toISOString().split('T')[0]
+            }
+            return date.toISOString().split('T')[0]
+          } catch (error) {
+            return new Date().toISOString().split('T')[0]
+          }
+        }
+        
         points.push({
           id: `${doc._id}_${index}`,
           title: sentence.trim().substring(0, 100) + (sentence.length > 100 ? '...' : ''),
@@ -134,7 +149,7 @@ const transformDocumentToImportantPoint = (doc: DocumentFromAPI): ImportantPoint
           documentId: doc._id,
           category,
           priority,
-          extractedDate: new Date(doc.createdAt).toISOString().split('T')[0],
+          extractedDate: getValidDate(doc.createdAt),
           tags: doc.tags || [doc.classification?.toLowerCase() || 'general'],
           confidence: 0.85,
           uploadedBy: doc.uploadedBy?.name || 'Unknown',
@@ -153,8 +168,8 @@ const transformDocumentToImportantPoint = (doc: DocumentFromAPI): ImportantPoint
 const fetchTodaysDocuments = async (): Promise<ImportantPoint[]> => {
   try {
     const today = new Date()
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0).toISOString()
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).toISOString()
     
     const response = await documentAPI.getAllDocuments({
       page: 1,
@@ -438,12 +453,19 @@ export function ImportantPointsPage() {
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-IN', { 
-      day: 'numeric', 
-      month: 'short', 
-      year: 'numeric' 
-    })
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date'
+      }
+      return date.toLocaleDateString('en-IN', { 
+        day: 'numeric', 
+        month: 'short', 
+        year: 'numeric' 
+      })
+    } catch (error) {
+      return 'Invalid Date'
+    }
   }
 
   const stats = {
@@ -451,10 +473,15 @@ export function ImportantPointsPage() {
     high: points.filter(p => p.priority === "high").length,
     safety: points.filter(p => p.category === "safety").length,
     recent: points.filter(p => {
-      const pointDate = new Date(p.extractedDate)
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
-      return pointDate > weekAgo
+      try {
+        const pointDate = new Date(p.extractedDate)
+        if (isNaN(pointDate.getTime())) return false
+        const weekAgo = new Date()
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        return pointDate > weekAgo
+      } catch (error) {
+        return false
+      }
     }).length
   }
 
