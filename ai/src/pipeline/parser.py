@@ -17,6 +17,7 @@ def extract_text_pdf(file_path):
         logger.error(f"Failed to extract text from PDF file {file_path}: {e}")
         text = ""
     logger.debug(f"Extracted text from PDF file {file_path}: {text}")
+    print(f"Parsed content from PDF {file_path}:\n{text}\n")
     return text
 
 
@@ -30,6 +31,7 @@ def extract_text_docx(file_path):
         text = "\n".join([p.text for p in doc.paragraphs])
         text = text.strip()
         logger.debug(f"Extracted text from docx file {file_path}: {text}")
+        print(f"Parsed content from DOCX {file_path}:\n{text}\n")
         return text
     except Exception as e:
         logger.error(f"Failed to extract text from docx file {file_path}: {e}")

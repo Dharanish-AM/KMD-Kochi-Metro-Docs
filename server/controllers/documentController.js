@@ -246,13 +246,7 @@ exports.getDocumentById = async (req, res) => {
       return res.status(404).json({ error: "Document not found" });
     }
 
-    res.status(200).json({ document });
-
-    if (!document) {
-      console.info(`No document found with ID: ${documentId}`);
-      return res.status(404).json({ error: "Document not found" });
-    }
-
+    // Only one success response
     res.status(200).json({ document });
   } catch (error) {
     console.error(

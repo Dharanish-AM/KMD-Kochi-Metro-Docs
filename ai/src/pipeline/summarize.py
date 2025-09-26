@@ -1,46 +1,48 @@
-from transformers import pipeline
-import re
 
-# Faster summarization model
-t5_summarizer = pipeline(
-    "summarization", model="t5-small", device=0  # GPU / MPS acceleration if available
-)
+import os
+import requests
+import logging
 
+logger = logging.getLogger(__name__)
+GROQ_API_KEY = "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"
 
-def extractive_summary(text, sentences_count=5):
-    # Simple sentence splitter using regex
-    sentences = re.split(r"(?<=[.!?]) +", text)
-    return " ".join(sentences[:sentences_count])
+def summarize_with_groq(text, language="en"):
+    """
+    Summarizes the given text using GROQ Chat Completions API.
+    """
+    system_prompt = f"You are a summarization assistant that summarizes text in {language}."
+    user_prompt = f"Summarize the following text in {language}:\n{text}"
 
+    payload = {
+        "model": "llama-3.1-8b-instant",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.1,
+        "max_tokens": 2048,
+        "stream": False
+    }
 
-def summarize_text(text):
-    max_chunk = 800
-    input_length = len(text.split())
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-    # Dynamically set max tokens: ~50% of input length, capped between 30–200
-    dynamic_max = min(200, max(30, int(input_length * 0.5)))
-
-    if len(text) < max_chunk:
-        summary = t5_summarizer(
-            text,
-            max_new_tokens=dynamic_max,  # dynamic instead of fixed
-            do_sample=False,
-        )[0]["summary_text"]
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+        summary = response.json()["choices"][0]["message"]["content"]
         return summary
-    else:
-        reduced_text = extractive_summary(text, sentences_count=10)
-        inputs = [
-            reduced_text[i : i + max_chunk]
-            for i in range(0, len(reduced_text), max_chunk)
-        ]
-        summaries = [
-            t5_summarizer(chunk, max_new_tokens=dynamic_max, do_sample=False)[0][
-                "summary_text"
-            ]
-            for chunk in inputs
-        ]
-        return t5_summarizer(
-            " ".join(summaries),
-            max_new_tokens=dynamic_max,
-            do_sample=False,
-        )[0]["summary_text"]
+    except Exception as e:
+        logger.error(f"GROQ summarization failed: {e}")
+        return text  # fallback
+
+def summarize_text(text, language="en"):
+    print("Starting summarization with GROQ...")
+    return summarize_with_groq(text, language=language)
