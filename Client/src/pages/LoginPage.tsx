@@ -7,10 +7,23 @@ import Lottie from "lottie-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
-import LoginLottie from "@/Utils/Lotties/Loginlottie.json";
+import LoginLottie from "@/Utils/Lotties/Metro Rail.json";
 import axiosInstance from "@/Utils/Auth/axiosInstance";
 import { setToken, setUser, setUserType } from "@/Utils/Auth/token";
 import { showToast } from "@/Utils/toaster";
@@ -18,7 +31,9 @@ import { showToast } from "@/Utils/toaster";
 // Form validation schema
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
+  password: z
+    .string()
+    .min(8, { message: "Password must be at least 8 characters long" }),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -31,9 +46,10 @@ const LoginPage = () => {
   // Prevent automatic scrolling
   useEffect(() => {
     // Disable smooth scrolling behavior globally for this component
-    const originalScrollBehavior = document.documentElement.style.scrollBehavior;
-    document.documentElement.style.scrollBehavior = 'auto';
-    
+    const originalScrollBehavior =
+      document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = "auto";
+
     return () => {
       document.documentElement.style.scrollBehavior = originalScrollBehavior;
     };
@@ -50,7 +66,7 @@ const LoginPage = () => {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    
+
     try {
       // Call the backend login API
       const response = await axiosInstance.post("/api/employee/login", {
@@ -60,22 +76,19 @@ const LoginPage = () => {
 
       // Store token and user data in localStorage
       const { token, user, userType, redirectTo } = response.data;
-      
+
       // Store the token
       setToken(token);
-      
+
       // Store user data using utility functions
       setUser(user);
       setUserType(userType);
-      
+
       console.log("Login successful:", response.data);
-      
+
       // Show success toast
-      showToast.success(
-        "Login Successful!", 
-        `Welcome back, ${user.name}!`
-      );
-      
+      showToast.success("Login Successful!", `Welcome back, ${user.name}!`);
+
       // Redirect based on user role and department
       if (redirectTo) {
         navigate(redirectTo);
@@ -83,16 +96,15 @@ const LoginPage = () => {
         // Fallback redirect
         navigate(userType === "admin" ? "/admin-dashboard" : "/");
       }
-      
     } catch (err: any) {
       console.error("Login error:", err);
-      
+
       // Handle error response with toast
       if (err.response?.data?.message) {
         showToast.error("Login Failed", err.response.data.message);
       } else {
         showToast.error(
-          "Login Failed", 
+          "Login Failed",
           "An error occurred during login. Please try again."
         );
       }
@@ -102,33 +114,31 @@ const LoginPage = () => {
   };
 
   return (
-    <div 
+    <div
       className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4"
-      style={{ scrollBehavior: 'auto', overflowAnchor: 'none' }}
+      style={{ scrollBehavior: "auto", overflowAnchor: "none" }}
     >
       <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden">
-        <div className="flex flex-col lg:flex-row min-h-[600px]">
-          {/* Left Side - Lottie Animation - Hidden on mobile */}
-          <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-500/80 via-indigo-500/80 to-purple-600/80 items-center justify-center p-8 lg:p-12 relative">
-            {/* Subtle overlay to dim background */}
-            <div className="absolute inset-0 bg-black/10"></div>
-            {/* Subtle overlay to dim background */}
-            <div className="absolute inset-0 bg-black/10"></div>
-            <div className="w-full max-w-md text-center relative z-10">
-              <div className="mb-8">
+        <div className="flex flex-col lg:flex-row">
+          {/* Left Side - Card-styled Lottie Animation */}
+          <div className="w-full lg:w-1/2 flex items-center justify-center p-6 bg-gradient-to-br from-indigo-50 via-white to-blue-50">
+            <Card className="w-full max-w-md border-0 shadow-xl rounded-2xl bg-white/80 backdrop-blur-md animate-fade-in-up">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl font-bold text-indigo-700">
+                  Kochi Metro Docs
+                </CardTitle>
+                <CardDescription className="text-gray-600">
+                  Smart Document Management
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex justify-center">
                 <Lottie
                   animationData={LoginLottie}
                   loop={true}
-                  className="w-full h-80 lg:h-96 drop-shadow-lg"
+                  className="w-full h-full drop-shadow-lg"
                 />
-              </div>
-              <h1 className="text-3xl lg:text-4xl font-bold text-white mb-4 drop-shadow-md">
-                Welcome Back!
-              </h1>
-              <p className="text-blue-50 text-lg leading-relaxed drop-shadow-sm">
-                Sign in to access your dashboard and manage your documents efficiently.
-              </p>
-            </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Right Side - Login Form - Full width on mobile */}
@@ -146,8 +156,8 @@ const LoginPage = () => {
 
                 <CardContent>
                   <Form {...form}>
-                    <form 
-                      onSubmit={form.handleSubmit(onSubmit)} 
+                    <form
+                      onSubmit={form.handleSubmit(onSubmit)}
                       className="space-y-6"
                       style={{ scrollMarginTop: 0 }}
                       onInvalid={(e) => e.preventDefault()}
