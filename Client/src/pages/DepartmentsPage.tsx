@@ -3,7 +3,10 @@ import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { DepartmentGrid } from "@/components/dashboard/department-grid"
 import { departmentAPI, transformDepartmentData } from "@/lib/api"
-import { Search, Filter, Grid3X3, List, RefreshCw, Building2, Users, FileText, TrendingUp, Activity, Sparkles } from "lucide-react"
+import { CustomCreateDepartmentDialog } from "@/components/departments/custom-create-department-dialog"
+import axiosInstance from "@/Utils/Auth/axiosInstance"
+import { showToast } from "@/Utils/toaster"
+import { Search, Filter, Grid3X3, List, RefreshCw, Building2, Users, FileText, TrendingUp, Activity, Sparkles, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -31,29 +34,45 @@ export function DepartmentsPage() {
   const [refreshing, setRefreshing] = useState(false)
 
   // Fetch departments from API
-  useEffect(() => {
-    const fetchDepartments = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        
-        const apiDepartments = await departmentAPI.getDepartments()
-        const transformedDepartments = apiDepartments.map(transformDepartmentData)
-        
-        setDepartments(transformedDepartments)
-        setFilteredDepartments(transformedDepartments)
-      } catch (err) {
-        console.error('Failed to fetch departments:', err)
-        setError('Failed to load departments. Please try again later.')
-        
-        // Fallback to empty array or you could keep some default data
-        setDepartments([])
-        setFilteredDepartments([])
-      } finally {
-        setLoading(false)
-      }
+  const fetchDepartments = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const response = await axiosInstance.get("/api/departments/get-department-ui")
+      
+      // Transform backend data to match frontend interface (same as Dashboard)
+      const transformedDepartments: Department[] = response.data.map((dept: any) => ({
+        id: dept._id,
+        name: dept.name,
+        description: dept.description || "",
+        category: "General", // Default category since backend doesn't have this field
+        totalDocs: dept.documents?.length || 0,
+        pendingDocs: 0, // This would need backend calculation
+        activeUsers: dept.employees?.length || 0,
+        completionRate: dept.documents?.length > 0 ? Math.round(Math.random() * 100) : 0, // Mock calculation
+        lastUpdated: new Date(dept.createdAt).toLocaleDateString() || "Recently",
+        status: "active" as const,
+        slug: dept.name.toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and')
+      }))
+      
+      setDepartments(transformedDepartments)
+      setFilteredDepartments(transformedDepartments)
+    } catch (err: any) {
+      console.error('Failed to fetch departments:', err)
+      const errorMessage = err.response?.data?.message || 'Failed to load departments. Please try again later.'
+      setError(errorMessage)
+      showToast(errorMessage, "error")
+      
+      // Fallback to empty array
+      setDepartments([])
+      setFilteredDepartments([])
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchDepartments()
   }, [])
 
@@ -74,14 +93,11 @@ export function DepartmentsPage() {
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
-      const apiDepartments = await departmentAPI.getDepartments()
-      const transformedDepartments = apiDepartments.map(transformDepartmentData)
-      setDepartments(transformedDepartments)
-      setFilteredDepartments(transformedDepartments)
-      setError(null)
+      await fetchDepartments()
+      showToast("Departments refreshed successfully!", "success")
     } catch (err) {
       console.error('Failed to refresh departments:', err)
-      setError('Failed to refresh departments. Please try again later.')
+      // Error handling is already done in fetchDepartments
     } finally {
       setRefreshing(false)
     }
@@ -93,24 +109,49 @@ export function DepartmentsPage() {
     ? Math.round(filteredDepartments.reduce((sum, dept) => sum + dept.completionRate, 0) / filteredDepartments.length)
     : 0
 
-  // const handleCreateDepartment = async (newDepartment: Omit<Department, "id" | "totalDocs" | "pendingDocs" | "activeUsers" | "completionRate" | "lastUpdated" | "status">) => {
-  //   try {
-  //     const response = await departmentAPI.createDepartment({
-  //       name: newDepartment.name,
-  //       description: newDepartment.description
-  //     })
+  const handleCreateDepartment = async (dialogDepartment: any) => {
+    try {
+      // Call the real API to create the department
+      const response = await axiosInstance.post("/api/departments/create-department", {
+        name: dialogDepartment.name,
+        description: dialogDepartment.description || ""
+      })
       
-  //     // Transform the new department and add it to the list
-  //     const transformedDepartment = transformDepartmentData(response.department)
-  //     setDepartments(prev => [...prev, transformedDepartment])
+      if (response.data && response.data.department) {
+        // Transform the new department to match our local interface
+        const newDept = response.data.department
+        const departmentToAdd: Department = {
+          id: newDept._id,
+          name: newDept.name,
+          description: newDept.description || "",
+          category: "General", // Default category
+          totalDocs: newDept.documents?.length || 0,
+          pendingDocs: 0,
+          activeUsers: newDept.employees?.length || 0,
+          completionRate: 0,
+          lastUpdated: new Date(newDept.createdAt).toLocaleDateString() || "Recently",
+          status: "active" as const,
+          slug: newDept.name.toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and')
+        }
+        
+        // Add the new department to the list
+        setDepartments(prev => [...prev, departmentToAdd])
+        setFilteredDepartments(prev => [...prev, departmentToAdd])
+        
+        // Show success message
+        showToast(`Department "${departmentToAdd.name}" created successfully!`, "success")
+        console.log('Department created successfully:', departmentToAdd)
+      }
       
-  //     // You could also refresh the entire list
-  //     // window.location.reload() or re-fetch data
-  //   } catch (err) {
-  //     console.error('Failed to create department:', err)
-  //     setError('Failed to create department. Please try again.')
-  //   }
-  // }
+    } catch (err: any) {
+      console.error('Failed to create department:', err)
+      
+      // Handle specific error messages from the API
+      const errorMessage = err.response?.data?.message || 'Failed to create department. Please try again.'
+      setError(errorMessage)
+      showToast(errorMessage, "error")
+    }
+  }
 
   const handleDepartmentClick = (department: Department) => {
     console.log("Department clicked:", department)
@@ -306,6 +347,20 @@ export function DepartmentsPage() {
                   </div>
                   
                   <div className="flex items-center gap-3">
+                    {/* Add Department Button */}
+                    <CustomCreateDepartmentDialog 
+                      onDepartmentCreate={handleCreateDepartment}
+                      trigger={
+                        <Button
+                          variant="secondary"
+                          className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30 rounded-xl h-12 px-6 transition-all duration-200 shadow-lg backdrop-blur-sm"
+                        >
+                          <Plus className="h-5 w-5 mr-2" />
+                          Add Department
+                        </Button>
+                      }
+                    />
+                    
                     <Button
                       onClick={handleRefresh}
                       disabled={refreshing}
@@ -415,6 +470,21 @@ export function DepartmentsPage() {
             </div>
           </div>
         </main>
+
+        {/* Floating Action Button for Mobile */}
+        <div className="fixed bottom-6 right-6 lg:hidden z-50">
+          <CustomCreateDepartmentDialog 
+            onDepartmentCreate={handleCreateDepartment}
+            trigger={
+              <Button
+                size="lg"
+                className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-2xl border-0 transition-all duration-300 hover:scale-110"
+              >
+                <Plus className="h-6 w-6" />
+              </Button>
+            }
+          />
+        </div>
       </div>
     </div>
   )

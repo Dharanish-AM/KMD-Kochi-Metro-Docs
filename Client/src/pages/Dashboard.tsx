@@ -5,7 +5,7 @@ import { OverviewStats } from "@/components/dashboard/overview-stats"
 import { DepartmentGrid } from "@/components/dashboard/department-grid"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { DepartmentUpload } from "@/components/departments/department-upload"
-import { ImportantPoints } from "@/components/admin/important-points"
+import { ImportantPoints } from "@/components/dashboard/important-points"
 import axiosInstance from "@/Utils/Auth/axiosInstance"
 import { showToast } from "@/Utils/toaster"
 
@@ -90,16 +90,29 @@ export function Dashboard() {
       case "dashboard":
         return (
           <div className="p-6 space-y-6">
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <DepartmentGrid 
-                  departments={departments} 
-                  onDepartmentClick={handleDepartmentClick}
-                />
+            {/* Top Row - Overview Stats and Document Intelligence */}
+            <div className="grid gap-6 lg:grid-cols-4">
+              <div className="lg:col-span-3">
+                <OverviewStats departments={departments} />
               </div>
-              <div>
-                <RecentActivity />
+              <div className="lg:col-span-1">
+                <ImportantPoints />
               </div>
+            </div>
+            
+            {/* Department Grid - 3 per row */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Departments</h2>
+                  <p className="text-gray-600 dark:text-gray-400">Manage all KMRL departments and their document workflows</p>
+                </div>
+              </div>
+              <DepartmentGrid 
+                departments={departments} 
+                onDepartmentClick={handleDepartmentClick}
+                viewMode="grid"
+              />
             </div>
           </div>
         )

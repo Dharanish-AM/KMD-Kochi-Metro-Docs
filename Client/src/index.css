@@ -484,4 +484,54 @@ All colors MUST be HSL.
   .dark .document-selector-scroll::-webkit-scrollbar-thumb:hover {
     background: rgba(59, 130, 246, 0.8);
   }
+
+  /* Dashboard specific animations */
+  @keyframes countUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideInFromLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% {
+      box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+    }
+  }
+
+  .animate-countUp {
+    animation: countUp 0.8s ease-out forwards;
+  }
+
+  .animate-slideInFromLeft {
+    animation: slideInFromLeft 0.5s ease-out forwards;
+  }
+
+  .animate-pulseGlow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+
+  /* Staggered animation delays for dashboard items */
+  .dashboard-item-1 { animation-delay: 0ms; }
+  .dashboard-item-2 { animation-delay: 100ms; }
+  .dashboard-item-3 { animation-delay: 200ms; }
+  .dashboard-item-4 { animation-delay: 300ms; }
 }

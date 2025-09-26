@@ -12,7 +12,8 @@ import {
   Lightbulb,
   Bell,
   UserCircle,
-  LogOut
+  LogOut,
+  Brain
 } from "lucide-react"
 import { useState } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
@@ -22,9 +23,8 @@ const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { id: "departments", label: "Departments", icon: Building2, path: "/departments" },
   { id: "documents", label: "Documents", icon: FileText, path: "/documents" },
-    { id: "important-points", label: "Important Points", icon: Lightbulb, path: "/important-points" },
-    {id:"Rag-Search", label:"Rag Search", icon:Lightbulb, path:"/rag-search"},
-
+  { id: "important-points", label: "Important Points", icon: Lightbulb, path: "/important-points" },
+  { id: "rag-search", label: "RAG Search", icon: Brain, path: "/rag-search" },
   { id: "chat-assistant", label: "Chat Assistant", icon: MessageSquare, path: "/chat-assistant" },
   { id: "users", label: "Users", icon: Users, path: "/users" },
   // { id: "notifications", label: "Notifications", icon: Bell, path: "/notifications" },
