@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
+const { sendWelcomeEmail } = require("../utils/emailService");
 
 exports.createAdmin = async (req, res) => {
   try {
@@ -26,9 +27,37 @@ exports.createAdmin = async (req, res) => {
 
     const savedAdmin = await User.findById(newAdmin._id).select("-password");
 
+    // Send welcome email with credentials (only if email service is configured)
+    if (process.env.MAIL_USER && process.env.MAIL_PASS) {
+      try {
+        const emailResult = await sendWelcomeEmail({
+          name: savedAdmin.name,
+          email: savedAdmin.email,
+          password: password, // Send the original password before hashing
+          role: savedAdmin.role,
+          departmentName: null // Admins don't have departments
+        });
+
+        if (emailResult.success) {
+          console.log(`✅ Welcome email sent to admin ${savedAdmin.email}`);
+        } else {
+          console.warn(`⚠️ Failed to send welcome email to admin ${savedAdmin.email}:`, emailResult.error);
+        }
+      } catch (emailError) {
+        console.error("Error sending welcome email to admin:", emailError);
+        // Don't fail the admin creation if email fails
+      }
+    } else {
+      console.warn("⚠️ Email service not configured. Welcome email not sent to admin.");
+    }
+
     res
       .status(201)
-      .json({ message: "Admin created successfully", admin: savedAdmin });
+      .json({ 
+        message: "Admin created successfully", 
+        admin: savedAdmin,
+        emailSent: process.env.MAIL_USER && process.env.MAIL_PASS ? true : false
+      });
   } catch (error) {
     console.error("Error creating admin:", error);
     res.status(500).json({ message: "Internal server error" });

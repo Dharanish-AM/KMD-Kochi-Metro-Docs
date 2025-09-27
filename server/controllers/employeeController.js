@@ -2,6 +2,7 @@ const User = require("../models/User");
 const Department = require("../models/Department");
 const bcrypt = require("bcryptjs");
 const { generateToken } = require("../utils/jwt");
+const { sendWelcomeEmail } = require("../utils/emailService");
 
 exports.createUser = async (req, res) => {
   console.log("Create User Request Body:", req.body);
@@ -60,9 +61,39 @@ exports.createUser = async (req, res) => {
     const savedUser = await User.findById(newUser._id)
       .select("-password")
       .populate("department");
+
+    // Send welcome email with credentials (only if email service is configured)
+    if (process.env.MAIL_USER && process.env.MAIL_PASS) {
+      try {
+        const departmentName = savedUser.department ? savedUser.department.name : null;
+        const emailResult = await sendWelcomeEmail({
+          name: savedUser.name,
+          email: savedUser.email,
+          password: password, // Send the original password before hashing
+          role: savedUser.role,
+          departmentName: departmentName
+        });
+
+        if (emailResult.success) {
+          console.log(`✅ Welcome email sent to ${savedUser.email}`);
+        } else {
+          console.warn(`⚠️ Failed to send welcome email to ${savedUser.email}:`, emailResult.error);
+        }
+      } catch (emailError) {
+        console.error("Error sending welcome email:", emailError);
+        // Don't fail the user creation if email fails
+      }
+    } else {
+      console.warn("⚠️ Email service not configured. Welcome email not sent.");
+    }
+
     res
       .status(201)
-      .json({ message: "User created successfully", user: savedUser });
+      .json({ 
+        message: "User created successfully", 
+        user: savedUser,
+        emailSent: process.env.MAIL_USER && process.env.MAIL_PASS ? true : false
+      });
   } catch (error) {
     console.error("Error creating user:", error);
     res.status(500).json({ message: "Internal server error" });
