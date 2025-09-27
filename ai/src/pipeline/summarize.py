@@ -63,7 +63,7 @@ def summarize_with_groq(text, language="en", max_lines=30):
 
         return limited_summary.strip()
     except Exception as e:
-        logger.error(f"GROQ summarization failed: {e}")
+        logger.error(f"summarization failed: {e}")
         # fallback
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         fallback_summary = " ".join(lines[:max_lines])
@@ -71,5 +71,5 @@ def summarize_with_groq(text, language="en", max_lines=30):
 
 
 def summarize_text(text, language="en"):
-    print("Starting summarization with GROQ...")
+    print("Starting summarization...")
     return summarize_with_groq(text, language=language)
