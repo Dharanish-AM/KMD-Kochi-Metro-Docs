@@ -188,9 +188,56 @@ export function DocumentsPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+  // Format date with better handling and relative time
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return 'Unknown';
+    
+    try {
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      const now = new Date();
+      const diffInMs = now.getTime() - date.getTime();
+      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+      
+      // Return relative time for recent dates
+      if (diffInMinutes < 1) {
+        return 'Just now';
+      } else if (diffInMinutes < 60) {
+        return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+      } else if (diffInHours < 24) {
+        return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+      } else if (diffInDays < 7) {
+        return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+      } else if (diffInDays < 30) {
+        const weeks = Math.floor(diffInDays / 7);
+        return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+      } else if (diffInDays < 365) {
+        const months = Math.floor(diffInDays / 30);
+        return `${months} month${months > 1 ? 's' : ''} ago`;
+      } else {
+        // For older dates, show the actual date
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid Date';
+    }
+  };
+
+  // Get the appropriate date for display (prefer uploadedAt, fallback to createdAt)
+  const getDocumentDate = (document: any) => {
+    return document.uploadedAt || document.createdAt || 'Unknown';
   };
 
   // Get file extension from fileName
@@ -748,9 +795,9 @@ export function DocumentsPage() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-gray-500" />
-                                <span>Uploaded {formatDate(document.createdAt)}</span>
+                                <span>Uploaded {formatDate(getDocumentDate(document))}</span>
                               </div>
-                              {document.createdAt !== document.updatedAt && (
+                              {(document.updatedAt && document.createdAt !== document.updatedAt) && (
                                 <div className="flex items-center gap-2">
                                   <Clock className="h-4 w-4 text-gray-500" />
                                   <span>Modified {formatDate(document.updatedAt)}</span>
@@ -947,7 +994,7 @@ export function DocumentsPage() {
                 <div className="flex items-center gap-6 mt-6 pt-4 border-t border-white/20">
                   <div className="flex items-center gap-2 text-blue-100">
                     <Calendar className="h-4 w-4" />
-                    <span className="text-sm">Created {selectedDocument && formatDate(selectedDocument.createdAt)}</span>
+                    <span className="text-sm">Uploaded {selectedDocument && formatDate(getDocumentDate(selectedDocument))}</span>
                   </div>
                   <div className="flex items-center gap-2 text-blue-100">
                     <Archive className="h-4 w-4" />
@@ -1105,8 +1152,8 @@ export function DocumentsPage() {
                               <Calendar className="h-5 w-5 text-blue-600" />
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-gray-500">Created</p>
-                              <p className="text-base font-semibold text-gray-900">{formatDate(selectedDocument.createdAt)}</p>
+                              <p className="text-sm font-medium text-gray-500">Uploaded</p>
+                              <p className="text-base font-semibold text-gray-900">{formatDate(getDocumentDate(selectedDocument))}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
@@ -1115,7 +1162,7 @@ export function DocumentsPage() {
                             </div>
                             <div>
                               <p className="text-sm font-medium text-gray-500">Last Modified</p>
-                              <p className="text-base font-semibold text-gray-900">{formatDate(selectedDocument.updatedAt)}</p>
+                              <p className="text-base font-semibold text-gray-900">{formatDate(selectedDocument.updatedAt || selectedDocument.createdAt)}</p>
                             </div>
                           </div>
                         </div>
