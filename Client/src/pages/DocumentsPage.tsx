@@ -33,7 +33,8 @@ import {
   Star,
   Heart,
   Bookmark,
-  Clock
+  Clock,
+  Trash2
 } from "lucide-react"
 import {
   Dialog,
@@ -125,6 +126,11 @@ export function DocumentsPage() {
   const [uploadDescription, setUploadDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string; department?: string } | null>(null);
+  
+  // Delete related state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   // Fetch documents from API
@@ -330,6 +336,64 @@ export function DocumentsPage() {
     }
   }
 
+  // Handle delete document confirmation
+  const handleDeleteClick = (document: Document) => {
+    setDocumentToDelete(document);
+    setIsDeleteModalOpen(true);
+  }
+
+  // Handle document deletion
+  const handleDeleteDocument = async () => {
+    if (!documentToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      // Get current user ID from localStorage or context
+      const userStr = localStorage.getItem('user');
+      const userId = userStr ? JSON.parse(userStr).id : null;
+      
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "User not authenticated",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      await axiosInstance.delete(`/api/documents/${documentToDelete._id}?userId=${userId}`);
+      
+      // Remove document from local state
+      setDocuments(prev => prev.filter(doc => doc._id !== documentToDelete._id));
+      
+      toast({
+        title: "Success",
+        description: "Document deleted successfully",
+      });
+      
+      // Close modals
+      setIsDeleteModalOpen(false);
+      setIsModalOpen(false);
+      setDocumentToDelete(null);
+      
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to delete document",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  // Cancel delete operation
+  const handleCancelDelete = () => {
+    setIsDeleteModalOpen(false);
+    setDocumentToDelete(null);
+  }
+
   // Upload utility functions
   const handleFiles = useCallback(async (newFiles: File[]) => {
     // Validate file types and size
@@ -481,16 +545,34 @@ export function DocumentsPage() {
         )
       );
 
-      if (!currentUser?.id) {
-        throw new Error("User not authenticated");
+      // Get user from localStorage as fallback
+      let userId = currentUser?.id;
+      
+      if (!userId) {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            userId = user.id;
+            setCurrentUser(user); // Update state for future use
+          } catch (e) {
+            console.error('Error parsing user from localStorage:', e);
+          }
+        }
+      }
+      
+      if (!userId) {
+        throw new Error("User not authenticated - please log in again");
       }
 
       const formData = new FormData();
       formData.append("file", file);
       formData.append("title", description || file.name);
 
+      console.log('Uploading to:', `/api/documents/upload?userId=${userId}`);
+
       const response = await axiosInstance.post(
-        `/api/documents/upload?userId=${currentUser.id}`,
+        `/api/documents/upload?userId=${userId}`,
         formData,
         {
           headers: {
@@ -523,8 +605,14 @@ export function DocumentsPage() {
       );
 
       return response.data;
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error("Upload error:", error);
+      console.error("Error details:", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url
+      });
 
       // Update file status to error
       setUploadFiles((prev) =>
@@ -532,6 +620,29 @@ export function DocumentsPage() {
           f.id === uploadFile.id ? { ...f, status: "error" } : f
         )
       );
+
+      // Show more detailed error message
+      let errorMessage = "Failed to upload file";
+      
+      if (error.response?.status === 404) {
+        errorMessage = "Server endpoint not found. Please check if the server is running on port 8000.";
+      } else if (error.response?.status === 401) {
+        errorMessage = "Authentication required. Please log in again.";
+      } else if (error.response?.status === 413) {
+        errorMessage = "File too large. Maximum file size is 50MB.";
+      } else if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
+        errorMessage = "Cannot connect to server. Please check if the server is running.";
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Upload Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
 
       throw error;
     }
@@ -689,6 +800,31 @@ export function DocumentsPage() {
                 <Button variant="outline" size="sm" onClick={() => fetchDocuments()}>
                   <Filter className="h-4 w-4 mr-2" />
                   Refresh
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={async () => {
+                    try {
+                      console.log('Testing server connection...');
+                      const response = await axiosInstance.get('/api/documents/all');
+                      console.log('Server response:', response.status);
+                      toast({
+                        title: "Server Test",
+                        description: `Server is responding (${response.status})`,
+                      });
+                    } catch (error: any) {
+                      console.error('Server test failed:', error);
+                      toast({
+                        title: "Server Test Failed",
+                        description: `Error: ${error.response?.status || 'Connection failed'}`,
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Test Server
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setIsUploadModalOpen(true)}>
                   <Upload className="h-4 w-4 mr-2" />
@@ -861,6 +997,15 @@ export function DocumentsPage() {
                                 className="text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 border-0"
                               >
                                 <Download className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleDeleteClick(document)}
+                                title="Delete document"
+                                className="text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 border-0"
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                             
@@ -1522,6 +1667,32 @@ export function DocumentsPage() {
                         </div>
                       </div>
 
+                      {/* Danger Zone */}
+                      <div className="bg-white rounded-xl shadow-md border border-red-100 p-6">
+                        <h4 className="flex items-center gap-2 font-semibold text-red-900 mb-6">
+                          <AlertCircle className="h-5 w-5 text-red-600" />
+                          Danger Zone
+                        </h4>
+                        <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <h5 className="font-medium text-red-900 mb-1">Delete Document</h5>
+                              <p className="text-sm text-red-700">
+                                Permanently remove this document from the system. This action cannot be undone.
+                              </p>
+                            </div>
+                            <Button 
+                              variant="outline"
+                              onClick={() => handleDeleteClick(selectedDocument)}
+                              className="ml-4 border-red-300 text-red-700 hover:bg-red-100 hover:border-red-400 transition-all duration-300"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Document Intelligence Summary */}
                       <div className="bg-gradient-to-br from-indigo-50 via-blue-50 to-cyan-50 rounded-xl border border-indigo-100 p-6">
                         <h4 className="flex items-center gap-2 font-semibold text-indigo-900 mb-4">
@@ -1845,6 +2016,68 @@ export function DocumentsPage() {
                 </Card>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              Confirm Deletion
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this document? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {documentToDelete && (
+            <div className="my-4 p-4 bg-gray-50 rounded-lg border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <FileText className="h-5 w-5 text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-gray-900 truncate">
+                    {documentToDelete.title || documentToDelete.fileName}
+                  </h4>
+                  <p className="text-sm text-gray-500">
+                    {documentToDelete.department?.name} • {formatFileSize(documentToDelete.fileSize)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div className="flex gap-3 pt-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={handleCancelDelete}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1 bg-red-600 hover:bg-red-700"
+              onClick={handleDeleteDocument}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Document
+                </>
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
