@@ -695,9 +695,13 @@ export function UsersPage() {
       const response = await axiosInstance.post("/api/employee/create-user", userData)
       
       if (response.data.user) {
+        const emailStatus = response.data.emailSent ? 
+          " Welcome email with credentials sent successfully!" : 
+          " (Email service not configured - please provide credentials manually)"
+        
         toast({
           title: "Success",
-          description: "User created successfully",
+          description: `User created successfully.${emailStatus}`,
         })
         
         // Refetch users to get the updated list from backend
