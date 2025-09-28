@@ -13,15 +13,12 @@ const KMRL_DEPARTMENTS = require("../constants/departments");
 
 exports.uploadDocument = async (req, res) => {
   const userId = req.query.userId;
+  console.log("Upload request received from user:", userId);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
     const user = await Employee.findById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
-
-    const department = await Department.findById(user.department);
-    if (!department)
-      return res.status(404).json({ error: "Department not found" });
 
     const uploadDir = path.resolve(__dirname, "../uploads");
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -93,30 +90,56 @@ exports.uploadDocument = async (req, res) => {
         } = aiResponse.data;
 
         //print response from AI
-
         console.log(`User ${userId} - AI server response:`, aiResponse.data);
 
-        const departmentName =
+        // Determine department per role/AI/user logic
+        let chosenDepartment = null;
+        let chosenDepartmentName = null;
+        let departmentResolutionReason = "";
+        // Get department name from AI response
+        const aiDepartmentName =
           typeof classification === "object"
             ? classification.primary_department
             : classification;
 
-        const department = await Department.findOne({ name: departmentName });
-        if (!department) {
+        if (user.role === "Admin") {
+          // Admin: use AI classified department
+          if (aiDepartmentName) {
+            chosenDepartment = await Department.findOne({ name: aiDepartmentName });
+            chosenDepartmentName = aiDepartmentName;
+            departmentResolutionReason = "AI classification (Admin upload)";
+          }
+        } else if (user.department) {
+          // Non-admin user with department: use user's department
+          chosenDepartment = await Department.findById(user.department);
+          if (chosenDepartment) {
+            chosenDepartmentName = chosenDepartment.name;
+            departmentResolutionReason = "User's department (non-admin)";
+          }
+        } else if (aiDepartmentName) {
+          // Non-admin user with no department: fallback to AI
+          chosenDepartment = await Department.findOne({ name: aiDepartmentName });
+          chosenDepartmentName = aiDepartmentName;
+          departmentResolutionReason = "AI classification (fallback)";
+        }
+
+        if (!chosenDepartment) {
           console.warn(
-            `User ${userId} - Invalid department classification: ${departmentName}`
+            `User ${userId} - Could not resolve department for document. AI classified: ${aiDepartmentName}, user.department: ${user.department}, userRole: ${user.role}`
           );
           return res
             .status(400)
-            .json({ error: "Invalid department classification" });
+            .json({ error: "Unable to resolve department for this document" });
         }
 
-        console.log(`${department.name} department matched for document.`);
+        console.log(
+          `${chosenDepartment.name} department matched for document. (Reason: ${departmentResolutionReason})`
+        );
 
         // 🔹 Save document in MongoDB
         const documentData = {
           uploadedBy: userId,
-          department: department._id, // Use AI returned primary_department
+          department: chosenDepartment._id, // Use chosen department _id
           fileUrl: `/uploads/${newFileName}`,
           title: fields.title ? fields.title[0] : file.originalFilename,
           fileName: file.originalFilename,
@@ -124,7 +147,7 @@ exports.uploadDocument = async (req, res) => {
           fileSize: file.size,
           summary: summary_en,
           summary_ml: aiResponse.data.summary_ml || null,
-          classification: departmentName,
+          classification: aiDepartmentName,
           classification_labels: classification?.labels || [],
           classification_scores: classification?.scores || [],
           metadata,
@@ -133,15 +156,14 @@ exports.uploadDocument = async (req, res) => {
         };
 
         const document = new Document(documentData);
-
         await document.save();
 
-        if (Array.isArray(department.documents)) {
-          department.documents.push(document._id);
+        if (Array.isArray(chosenDepartment.documents)) {
+          chosenDepartment.documents.push(document._id);
         } else {
-          department.documents = [document._id];
+          chosenDepartment.documents = [document._id];
         }
-        await department.save();
+        await chosenDepartment.save();
 
         // 🔹 Store embeddings in Qdrant
         let embeddingsStored = true;
@@ -155,7 +177,7 @@ exports.uploadDocument = async (req, res) => {
                   vector: embedding_vector,
                   payload: {
                     fileName: file.originalFilename,
-                    department: department.name,
+                    department: chosenDepartment.name,
                     documentId: document._id.toString(),
                   },
                 },
@@ -1505,5 +1527,61 @@ For detailed analysis, please try again later or contact your system administrat
       requestType: req.body.requestType || "document_analysis",
       fallback: true,
     });
+  }
+};
+
+
+
+// Department statistics controller
+exports.getDepartmentStats = async (req, res) => {
+  try {
+    const departmentId = req.params.departmentId;
+    if (!mongoose.Types.ObjectId.isValid(departmentId)) {
+      return res.status(400).json({ error: "Invalid department ID" });
+    }
+
+    // Fetch department and populate documents
+    const department = await Department.findById(departmentId).populate("documents");
+    if (!department) {
+      return res.status(404).json({ error: "Department not found" });
+    }
+
+    const documents = Array.isArray(department.documents) ? department.documents : [];
+    const totalFiles = documents.length;
+    const pendingFiles = documents.filter(doc => doc.status === "pending").length;
+    const acceptedFiles = documents.filter(doc => doc.status === "accepted").length;
+    const rejectedFiles = documents.filter(doc => doc.status === "rejected").length;
+    // Find latest uploadedAt (if any)
+    let lastActivity = "No activity";
+    if (documents.length > 0) {
+      // Some docs may not have uploadedAt, so filter out nulls
+      const uploadedAts = documents
+        .map(doc => doc.uploadedAt)
+        .filter(date => !!date)
+        .sort((a, b) => new Date(b) - new Date(a));
+      if (uploadedAts.length > 0) {
+        lastActivity = uploadedAts[0];
+      }
+    }
+    // Count users in this department
+    const staff = await Employee.countDocuments({ department: departmentId });
+
+    res.status(200).json({
+      stats: {
+        totalFiles,
+        pendingFiles,
+        acceptedFiles,
+        rejectedFiles,
+        lastActivity,
+        staff,
+        documents
+      }
+    });
+  } catch (error) {
+    console.error(
+      `Error fetching department stats for departmentId ${req.params.departmentId}:`,
+      error
+    );
+    res.status(500).json({ error: "Internal server error" });
   }
 };

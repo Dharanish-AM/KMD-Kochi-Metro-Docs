@@ -13,9 +13,9 @@ export function OverviewStats() {
   const stats = [
     {
       title: "Total Documents",
-      value: "2,847",
-      change: "+12% from last month",
-      changeValue: "+12%",
+      value: "7",
+      change: "+1% from last month",
+      changeValue: "+1%",
       trend: "up",
       icon: FileText,
       variant: "default" as const,
@@ -25,9 +25,9 @@ export function OverviewStats() {
     },
     {
       title: "Processed Today",
-      value: "156",
-      change: "+23 from yesterday",
-      changeValue: "+23",
+      value: "2",
+      change: "+1 from yesterday",
+      changeValue: "+2",
       trend: "up",
       icon: Upload,
       variant: "success" as const,
@@ -37,9 +37,9 @@ export function OverviewStats() {
     },
     {
       title: "Pending Review",
-      value: "42",
+      value: "0",
       change: "-8 from yesterday",
-      changeValue: "-8",
+      changeValue: "-1",
       trend: "down",
       icon: Clock,
       variant: "warning" as const,
@@ -49,7 +49,7 @@ export function OverviewStats() {
     },
     {
       title: "Active Users",
-      value: "89",
+      value: "3",
       change: "+5 this week",
       changeValue: "+5",
       trend: "up",
